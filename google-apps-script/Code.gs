@@ -1,31 +1,40 @@
 /**
  * =========================================================================
- * VS ADVISORY CRM - GOOGLE APPS SCRIPT BACKEND REST API (v3.3)
- * =========================================================================
- * Multi-Sheet Real-Time Integration Engine
+ * VS ADVISORY CRM - GOOGLE APPS SCRIPT BACKEND REST API (v4.0 - SINGLE FILE SELF-CONTAINED)
  * =========================================================================
  */
 
-function jsonResponse(data) {
-  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
-}
-
 function doGet(e) {
-  return handleRequest(e ? e.parameter : {}, 'GET');
+  try {
+    var params = (e && e.parameter) ? e.parameter : {};
+    return handleRequest(params, 'GET');
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: 'error',
+      message: 'doGet Error: ' + err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
 function doPost(e) {
-  var payload = {};
-  if (e && e.postData && e.postData.contents) {
-    try {
-      payload = JSON.parse(e.postData.contents);
-    } catch (err) {
-      payload = e.parameter || {};
+  try {
+    var payload = {};
+    if (e && e.postData && e.postData.contents) {
+      try {
+        payload = JSON.parse(e.postData.contents);
+      } catch (parseErr) {
+        payload = e.parameter || {};
+      }
+    } else if (e && e.parameter) {
+      payload = e.parameter;
     }
-  } else if (e && e.parameter) {
-    payload = e.parameter;
+    return handleRequest(payload, 'POST');
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: 'error',
+      message: 'doPost Error: ' + err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
   }
-  return handleRequest(payload, 'POST');
 }
 
 function handleRequest(params, method) {
@@ -34,12 +43,12 @@ function handleRequest(params, method) {
 
     if (action === 'ping') {
       var info = getSpreadsheetInfo();
-      return jsonResponse({
+      return ContentService.createTextOutput(JSON.stringify({
         status: 'success',
         message: 'VS Advisory CRM Multi-Sheet Engine is online!',
         spreadsheet: info,
         timestamp: new Date().toISOString()
-      });
+      })).setMimeType(ContentService.MimeType.JSON);
     }
 
     if (action === 'getInitialData' || action === 'getLeads') {
@@ -71,22 +80,19 @@ function handleRequest(params, method) {
     }
 
     if (action === 'setupMasterCRM') {
-      return jsonResponse(setupMasterCRM(params));
+      return ContentService.createTextOutput(JSON.stringify(setupMasterCRM(params))).setMimeType(ContentService.MimeType.JSON);
     }
 
-    return jsonResponse({ status: 'error', message: 'Unknown action: ' + action });
+    return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'Unknown action: ' + action })).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
-    return jsonResponse({ 
+    return ContentService.createTextOutput(JSON.stringify({ 
       status: 'error', 
       message: 'Server Error: ' + err.toString(), 
       stack: err.stack 
-    });
+    })).setMimeType(ContentService.MimeType.JSON);
   }
 }
 
-/**
- * Extract clean Spreadsheet ID from ID or Full URL
- */
 function extractSpreadsheetId(input) {
   if (!input) return "";
   var str = String(input).trim();
@@ -98,9 +104,6 @@ function extractSpreadsheetId(input) {
   return str;
 }
 
-/**
- * Smart Spreadsheet opener (supports ID, URL, or Active Sheet)
- */
 function getSpreadsheet(sheetIdOrUrl) {
   var cleanId = extractSpreadsheetId(sheetIdOrUrl);
   if (cleanId && cleanId !== "") {
@@ -118,9 +121,6 @@ function getSpreadsheet(sheetIdOrUrl) {
   return null;
 }
 
-/**
- * Inspect tabs and headers in a spreadsheet
- */
 function getSpreadsheetInfo(sheetId) {
   try {
     var ss = getSpreadsheet(sheetId);
@@ -147,9 +147,6 @@ function getSpreadsheetInfo(sheetId) {
   }
 }
 
-/**
- * Test a specific Sheet ID / URL
- */
 function testSpecificSheet(params) {
   var rawInput = (params.sheetId || params.spreadsheetId || "").trim();
   var sheetName = (params.sheetName || params.tabName || "").trim();
@@ -157,42 +154,39 @@ function testSpecificSheet(params) {
   try {
     var ss = getSpreadsheet(rawInput);
     if (!ss) {
-      return jsonResponse({
+      return ContentService.createTextOutput(JSON.stringify({
         status: 'error',
         message: 'Could not access spreadsheet. Make sure ID/URL is valid and shared with your Google account.'
-      });
+      })).setMimeType(ContentService.MimeType.JSON);
     }
 
     var sheet = sheetName ? (ss.getSheetByName(sheetName) || ss.getSheets()[0]) : ss.getSheets()[0];
     if (!sheet) {
-      return jsonResponse({
+      return ContentService.createTextOutput(JSON.stringify({
         status: 'error',
         message: 'Spreadsheet opened, but no sheet tabs found.'
-      });
+      })).setMimeType(ContentService.MimeType.JSON);
     }
 
     var data = sheet.getDataRange().getValues();
     var rowCount = Math.max(0, data.length - 1);
 
-    return jsonResponse({
+    return ContentService.createTextOutput(JSON.stringify({
       status: 'success',
       spreadsheetTitle: ss.getName(),
       spreadsheetId: ss.getId(),
       tabName: sheet.getName(),
       rowCount: rowCount,
       headers: data.length > 0 ? data[0] : []
-    });
+    })).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
-    return jsonResponse({
+    return ContentService.createTextOutput(JSON.stringify({
       status: 'error',
       message: 'Sheet Error: ' + err.message
-    });
+    })).setMimeType(ContentService.MimeType.JSON);
   }
 }
 
-/**
- * Fetch all leads from MULTIPLE configured sheets dynamically
- */
 function getInitialData(params) {
   var leads = [];
   var systemTabs = ["users", "activities", "tasks", "settings"];
@@ -208,7 +202,6 @@ function getInitialData(params) {
     }
   }
 
-  // Fallback if no sheets parameter passed
   if (!sheetConfigs || sheetConfigs.length === 0) {
     var activeSS = SpreadsheetApp.getActiveSpreadsheet();
     if (activeSS) {
@@ -224,7 +217,6 @@ function getInitialData(params) {
 
   var masterSS = null;
 
-  // Process each configured sheet
   sheetConfigs.forEach(function(sc, sIdx) {
     if (sc.enabled === false) {
       diagnostics.push("Skipped \"" + sc.name + "\" (Disabled)");
@@ -273,13 +265,12 @@ function getInitialData(params) {
     }
   });
 
-  // Read Master Tabs
   var targetMaster = masterSS || SpreadsheetApp.getActiveSpreadsheet();
   var users = targetMaster ? readTable(targetMaster, "Users") : [];
   var activities = targetMaster ? readTable(targetMaster, "Activities") : [];
   var tasks = targetMaster ? readTable(targetMaster, "Tasks") : [];
 
-  return jsonResponse({
+  return ContentService.createTextOutput(JSON.stringify({
     status: 'success',
     data: {
       leads: leads,
@@ -291,17 +282,13 @@ function getInitialData(params) {
       spreadsheetInfo: targetMaster ? getSpreadsheetInfo(targetMaster.getId()) : null,
       timestamp: new Date().toISOString()
     }
-  });
+  })).setMimeType(ContentService.MimeType.JSON);
 }
 
-/**
- * Read Leads from a single sheet tab with smart Header-Row detection
- */
 function readLeadsFromSheet(sheet, sourceTag, spreadsheetId, sourceColor) {
   var data = sheet.getDataRange().getValues();
   if (!data || data.length < 2) return [];
 
-  // Find the true Header Row (scan first 5 rows)
   var headerRowIdx = 0;
   for (var r = 0; r < Math.min(5, data.length); r++) {
     var rowStr = data[r].map(function(c) { return String(c || '').toLowerCase(); }).join(" ");
@@ -423,10 +410,10 @@ function readLeadsFromSheet(sheet, sourceTag, spreadsheetId, sourceColor) {
 function updateLead(payload) {
   var spreadsheetId = payload.spreadsheet_id;
   var ss = getSpreadsheet(spreadsheetId);
-  if (!ss) return jsonResponse({ status: 'error', message: 'Target spreadsheet not found' });
+  if (!ss) return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'Target spreadsheet not found' })).setMimeType(ContentService.MimeType.JSON);
 
   var sheet = payload.sheet_name ? (ss.getSheetByName(payload.sheet_name) || ss.getSheets()[0]) : ss.getSheets()[0];
-  if (!sheet) return jsonResponse({ status: 'error', message: 'Target sheet tab not found' });
+  if (!sheet) return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'Target sheet tab not found' })).setMimeType(ContentService.MimeType.JSON);
 
   var data = sheet.getDataRange().getValues();
   var headers = data[0].map(function(h) { return String(h || '').trim().toLowerCase(); });
@@ -447,7 +434,7 @@ function updateLead(payload) {
     }
   }
 
-  if (!targetRowIndex) return jsonResponse({ status: 'error', message: 'Lead row not found in sheet' });
+  if (!targetRowIndex) return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'Lead row not found in sheet' })).setMimeType(ContentService.MimeType.JSON);
 
   function setCell(colName, val) {
     var colIdx = headers.indexOf(colName.toLowerCase());
@@ -469,13 +456,13 @@ function updateLead(payload) {
   if (payload.phone_number !== undefined) setCell("phone_number", payload.phone_number);
   if (payload.email !== undefined) setCell("email", payload.email);
 
-  return jsonResponse({ status: 'success', message: 'Row updated successfully in Google Sheet!' });
+  return ContentService.createTextOutput(JSON.stringify({ status: 'success', message: 'Row updated successfully in Google Sheet!' })).setMimeType(ContentService.MimeType.JSON);
 }
 
 function createLead(payload) {
   var spreadsheetId = payload.spreadsheet_id;
   var ss = getSpreadsheet(spreadsheetId);
-  if (!ss) return jsonResponse({ status: 'error', message: 'No spreadsheet found to add lead' });
+  if (!ss) return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'No spreadsheet found to add lead' })).setMimeType(ContentService.MimeType.JSON);
 
   var sheet = ss.getSheets()[0];
   var data = sheet.getDataRange().getValues();
@@ -503,42 +490,42 @@ function createLead(payload) {
   fill("crm_assigned_to", payload.crm_assigned_to || "");
 
   sheet.appendRow(newRow);
-  return jsonResponse({ status: 'success', id: newId, message: 'Lead added to sheet row #' + (sheet.getLastRow()) });
+  return ContentService.createTextOutput(JSON.stringify({ status: 'success', id: newId, message: 'Lead added to sheet row #' + (sheet.getLastRow()) })).setMimeType(ContentService.MimeType.JSON);
 }
 
 function logActivity(payload) {
   var ss = getSpreadsheet(payload.spreadsheet_id);
-  if (!ss) return jsonResponse({ status: 'error', message: 'Spreadsheet not found' });
+  if (!ss) return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'Spreadsheet not found' })).setMimeType(ContentService.MimeType.JSON);
   var s = ss.getSheetByName("Activities") || ss.insertSheet("Activities");
   if (s.getLastRow() === 0) s.appendRow(["id", "lead_id", "type", "summary", "details", "date", "logged_by"]);
   var id = "ACT-" + Date.now();
   s.appendRow([id, payload.lead_id || "", payload.type || "Note", payload.summary || "", payload.details || "", payload.date || new Date().toISOString(), payload.logged_by || "Advisor"]);
-  return jsonResponse({ status: 'success', id: id });
+  return ContentService.createTextOutput(JSON.stringify({ status: 'success', id: id })).setMimeType(ContentService.MimeType.JSON);
 }
 
 function createTask(payload) {
   var ss = getSpreadsheet(payload.spreadsheet_id);
-  if (!ss) return jsonResponse({ status: 'error', message: 'Spreadsheet not found' });
+  if (!ss) return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'Spreadsheet not found' })).setMimeType(ContentService.MimeType.JSON);
   var s = ss.getSheetByName("Tasks") || ss.insertSheet("Tasks");
   if (s.getLastRow() === 0) s.appendRow(["id", "lead_id", "lead_name", "title", "description", "due_date", "priority", "status", "assigned_to"]);
   var id = "TASK-" + Date.now();
   s.appendRow([id, payload.lead_id || "", payload.lead_name || "", payload.title || "", payload.description || "", payload.due_date || "", payload.priority || "High", "Pending", payload.assigned_to || ""]);
-  return jsonResponse({ status: 'success', id: id });
+  return ContentService.createTextOutput(JSON.stringify({ status: 'success', id: id })).setMimeType(ContentService.MimeType.JSON);
 }
 
 function updateTask(payload) {
   var ss = getSpreadsheet(payload.spreadsheet_id);
-  if (!ss) return jsonResponse({ status: 'error', message: 'Spreadsheet not found' });
+  if (!ss) return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'Spreadsheet not found' })).setMimeType(ContentService.MimeType.JSON);
   var s = ss.getSheetByName("Tasks");
-  if (!s) return jsonResponse({ status: 'error', message: 'Tasks tab not found' });
+  if (!s) return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'Tasks tab not found' })).setMimeType(ContentService.MimeType.JSON);
   var data = s.getDataRange().getValues();
   for (var r = 1; r < data.length; r++) {
     if (String(data[r][0]) === String(payload.id)) {
       s.getRange(r + 1, 8).setValue(payload.status);
-      return jsonResponse({ status: 'success' });
+      return ContentService.createTextOutput(JSON.stringify({ status: 'success' })).setMimeType(ContentService.MimeType.JSON);
     }
   }
-  return jsonResponse({ status: 'error', message: 'Task not found' });
+  return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'Task not found' })).setMimeType(ContentService.MimeType.JSON);
 }
 
 function readTable(ss, name) {

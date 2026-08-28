@@ -2,7 +2,7 @@ import { Lead, Activity, Task, User, SheetConfig, SpreadsheetInfo, ConnectedShee
 
 const STORAGE_KEY_CONFIG = 'vs_crm_sheet_config';
 const STORAGE_KEY_USER = 'vs_crm_current_user';
-export const CURRENT_LATEST_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxU1ZGsnwRLlKOkyc6OyS5tjDbxLV0AaoJ3XyvIjI_3TjaFi5di-WNpDDsp2pY81FA_/exec';
+export const CURRENT_LATEST_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUNxbSxgxazp_XoZ4F3az29L_Or3M5Mz36poilP7UBBM8esKLTKPt8pvmY9jT4u4Is/exec';
 
 export function extractCleanId(input: string): string {
   if (!input) return '';
@@ -19,15 +19,30 @@ export const getSavedConfig = (): SheetConfig => {
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
-      // Auto-migrate if user is still pointing to the deprecated old deployment URL
-      if (parsed.scriptUrl && parsed.scriptUrl.includes('AKfycbyUNxbSxgxazp_XoZ4F3az29L_Or3M5Mz36poilP7UBBM8esKLTKPt8pvmY9jT4u4Is')) {
-        parsed.scriptUrl = CURRENT_LATEST_SCRIPT_URL;
-        saveConfig(parsed);
+      // Auto-set the correct URL
+      parsed.scriptUrl = CURRENT_LATEST_SCRIPT_URL;
+      
+      if (!parsed.sheets || !Array.isArray(parsed.sheets) || parsed.sheets.length === 0) {
+        parsed.sheets = [
+          {
+            id: 'sheet-kanakia',
+            name: 'Kanakia',
+            spreadsheetId: '1Om_Gjm6Hh6MwXy1zokgG2KIcQoGNg8lcsW4MTj_hI8o',
+            tabName: '',
+            enabled: true,
+            color: 'emerald'
+          },
+          {
+            id: 'sheet-rishabraj',
+            name: 'H.Rishabraj',
+            spreadsheetId: '1f6ZtbLS5oxDXNjx57FvfBLwJ0Tr30s3R0ip5MwT6nec',
+            tabName: '',
+            enabled: true,
+            color: 'sky'
+          }
+        ];
       }
-
-      if (parsed.scriptUrl && parsed.sheets && parsed.sheets.length > 0) {
-        return parsed;
-      }
+      return parsed;
     } catch {
       // ignore
     }
@@ -60,6 +75,7 @@ export const getSavedConfig = (): SheetConfig => {
 export const saveConfig = (config: SheetConfig) => {
   const sanitized = {
     ...config,
+    scriptUrl: config.scriptUrl?.trim() || CURRENT_LATEST_SCRIPT_URL,
     sheets: (config.sheets || []).map((s) => ({
       ...s,
       spreadsheetId: extractCleanId(s.spreadsheetId || ''),
@@ -102,11 +118,7 @@ function cleanScriptUrl(rawUrl: string): string {
  */
 export async function apiPost(action: string, payload: Record<string, any> = {}) {
   const config = getSavedConfig();
-  const scriptUrl = cleanScriptUrl(config.scriptUrl || '');
-
-  if (!scriptUrl || !scriptUrl.startsWith('http')) {
-    throw new Error('Google Apps Script Web App URL is not configured.');
-  }
+  const scriptUrl = cleanScriptUrl(config.scriptUrl || CURRENT_LATEST_SCRIPT_URL);
 
   const requestBody = {
     action,
@@ -143,7 +155,7 @@ export async function apiPost(action: string, payload: Record<string, any> = {})
   } catch (err: any) {
     if (err.message && err.message.includes('Failed to fetch')) {
       throw new Error(
-        'CORS / Permission Error: Please update your Web App URL in Google Sheets Setup to your newest deployment URL.'
+        'CORS / Permission Error: Please check that Web App access is set to "Anyone".'
       );
     }
     throw new Error(err.message || 'Network request failed');
@@ -151,11 +163,7 @@ export async function apiPost(action: string, payload: Record<string, any> = {})
 }
 
 export async function testConnection(rawScriptUrl: string) {
-  const scriptUrl = cleanScriptUrl(rawScriptUrl || '');
-
-  if (!scriptUrl || !scriptUrl.startsWith('http')) {
-    throw new Error('Invalid URL. Please enter the full Web App URL.');
-  }
+  const scriptUrl = cleanScriptUrl(rawScriptUrl || CURRENT_LATEST_SCRIPT_URL);
 
   try {
     const response = await fetch(scriptUrl, {
@@ -185,10 +193,7 @@ export async function testConnection(rawScriptUrl: string) {
 }
 
 export async function testSingleSheet(rawScriptUrl: string, sheetId: string, sheetName: string = '') {
-  const scriptUrl = cleanScriptUrl(rawScriptUrl || '');
-  if (!scriptUrl || !scriptUrl.startsWith('http')) {
-    throw new Error('Please enter your Apps Script Web App URL first.');
-  }
+  const scriptUrl = cleanScriptUrl(rawScriptUrl || CURRENT_LATEST_SCRIPT_URL);
 
   const cleanId = extractCleanId(sheetId);
   const response = await fetch(scriptUrl, {
