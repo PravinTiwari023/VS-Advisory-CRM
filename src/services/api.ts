@@ -18,34 +18,33 @@ export const getSavedConfig = (): SheetConfig => {
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
-      if (!parsed.sheets || !Array.isArray(parsed.sheets)) {
-        parsed.sheets = [
-          {
-            id: 'sheet-1',
-            name: 'Meta Campaign 1',
-            spreadsheetId: '',
-            tabName: '',
-            enabled: true,
-            color: 'emerald'
-          }
-        ];
+      if (parsed.scriptUrl && parsed.sheets && parsed.sheets.length > 0) {
+        return parsed;
       }
-      return parsed;
     } catch {
       // ignore
     }
   }
 
+  // Pre-configured default settings with user's verified Web App URL & sheets
   return {
-    scriptUrl: '',
+    scriptUrl: 'https://script.google.com/macros/s/AKfycbxU1ZGsnwRLlKOkyc6OyS5tjDbxLV0AaoJ3XyvIjI_3TjaFi5di-WNpDDsp2pY81FA_/exec',
     sheets: [
       {
-        id: 'sheet-1',
-        name: 'Meta Campaign 1',
-        spreadsheetId: '',
+        id: 'sheet-kanakia',
+        name: 'Kanakia',
+        spreadsheetId: '1Om_Gjm6Hh6MwXy1zokgG2KIcQoGNg8lcsW4MTj_hI8o',
         tabName: '',
         enabled: true,
         color: 'emerald'
+      },
+      {
+        id: 'sheet-rishabraj',
+        name: 'H.Rishabraj',
+        spreadsheetId: '1f6ZtbLS5oxDXNjx57FvfBLwJ0Tr30s3R0ip5MwT6nec',
+        tabName: '',
+        enabled: true,
+        color: 'sky'
       }
     ],
   };
