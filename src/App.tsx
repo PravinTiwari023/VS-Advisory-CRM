@@ -34,21 +34,27 @@ import {
   AlertCircle, 
   CheckCircle2, 
   X, 
-  KanbanSquare, 
   Table2, 
   BarChart3, 
   CheckSquare, 
   Settings2,
   Sparkles,
   Plus,
-  Loader2
+  Loader2,
+  ListTodo
 } from 'lucide-react';
 
 const LOCAL_STORAGE_LEADS_CACHE = 'vs_crm_leads_cache';
 
 export function App() {
   const [config, setConfig] = useState<SheetConfig>(getSavedConfig());
-  const [activeTab, setActiveTab] = useState<ActiveTab>('pipeline');
+  // Default to 'table' on mobile, 'pipeline' on desktop
+  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      return 'table';
+    }
+    return 'pipeline';
+  });
   const [searchQuery, setSearchQuery] = useState('');
 
   // Firebase Auth State
@@ -114,7 +120,6 @@ export function App() {
       const loadedLeads = Array.isArray(data?.leads) ? data.leads : [];
       setLeads(loadedLeads);
       
-      // Cache leads locally for instant next load
       try {
         localStorage.setItem(LOCAL_STORAGE_LEADS_CACHE, JSON.stringify(loadedLeads));
       } catch {}
@@ -298,13 +303,21 @@ export function App() {
     return <AuthScreen onSuccess={() => {}} />;
   }
 
+  // Define mobile navigation tabs (hiding pipeline page on mobile)
+  const mobileNavTabs: { id: ActiveTab; label: string; icon: any; count?: number }[] = [
+    { id: 'table', label: 'Leads', icon: Table2, count: leads.length },
+    { id: 'tasks', label: 'Tasks', icon: ListTodo, count: pendingTasksCount },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+    { id: 'settings', label: 'Setup', icon: Settings2 },
+  ];
+
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 font-['Plus_Jakarta_Sans',sans-serif] selection:bg-brand-500 selection:text-white">
       {/* Toast Notification */}
       {toast && (
         <div className="fixed top-4 sm:top-auto sm:bottom-5 right-4 sm:right-5 z-50 animate-in slide-in-from-top-5 sm:slide-in-from-bottom-5">
           <div
-            className={`px-4 py-3 rounded-2xl shadow-2xl border flex items-center space-x-3 text-xs font-semibold ${
+            className={`px-4 py-2.5 sm:py-3 rounded-2xl shadow-2xl border flex items-center space-x-2.5 text-xs font-semibold ${
               toast.type === 'success'
                 ? 'bg-emerald-950/95 border-emerald-500/40 text-emerald-200'
                 : toast.type === 'error'
@@ -319,10 +332,10 @@ export function App() {
             ) : (
               <Sparkles className="w-4 h-4 text-brand-400 shrink-0" />
             )}
-            <span>{toast.message}</span>
+            <span className="truncate max-w-[240px] sm:max-w-xs">{toast.message}</span>
             <button
               onClick={() => setToast(null)}
-              className="text-slate-400 hover:text-slate-200 ml-2"
+              className="text-slate-400 hover:text-slate-200 ml-1"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -348,7 +361,7 @@ export function App() {
 
       {/* Main Layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Desktop Sidebar */}
+        {/* Desktop Sidebar (Only visible on >= lg) */}
         <Sidebar
           activeTab={activeTab}
           onSelectTab={setActiveTab}
@@ -358,41 +371,44 @@ export function App() {
           config={config}
         />
 
-        {/* Content Area with safe bottom padding for mobile navigation bar */}
+        {/* Content Area */}
         <main className="flex-1 flex flex-col overflow-hidden bg-slate-950 pb-16 lg:pb-0">
           {/* Disconnected Alert Banner */}
           {!isConnected && activeTab !== 'settings' && (
-            <div className="p-3 sm:p-4 bg-amber-950/40 border-b border-amber-500/30 flex items-center justify-between px-4 sm:px-6 text-xs shrink-0">
-              <div className="flex items-center space-x-2.5 text-amber-300 min-w-0">
+            <div className="p-2.5 sm:p-4 bg-amber-950/40 border-b border-amber-500/30 flex items-center justify-between px-3 sm:px-6 text-xs shrink-0">
+              <div className="flex items-center space-x-2 text-amber-300 min-w-0">
                 <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
-                <span className="truncate">
-                  <strong>Google Sheets disconnected.</strong> Link your Apps Script Web App URL.
+                <span className="truncate text-[11px] sm:text-xs">
+                  <strong>Google Sheets disconnected.</strong>
                 </span>
               </div>
               <button
                 onClick={() => setActiveTab('settings')}
-                className="px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 font-semibold shrink-0 ml-2 text-[11px] sm:text-xs"
+                className="px-2 py-0.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 font-semibold shrink-0 ml-2 text-[11px]"
               >
                 Connect
               </button>
             </div>
           )}
 
-          {/* Active Tab View */}
+          {/* Desktop Pipeline View (Hidden on mobile) */}
           {activeTab === 'pipeline' && (
-            <KanbanBoard
-              leads={searchedLeads}
-              onUpdateLeadStage={handleUpdateLeadStage}
-              onSelectLead={(l) => setSelectedLead(l)}
-              onOpenWhatsApp={(l) => setWhatsAppLead(l)}
-              onOpenNewLead={(stage) => {
-                setNewLeadStage(stage || 'New Lead');
-                setIsNewLeadOpen(true);
-              }}
-            />
+            <div className="hidden lg:flex flex-1 flex-col overflow-hidden">
+              <KanbanBoard
+                leads={searchedLeads}
+                onUpdateLeadStage={handleUpdateLeadStage}
+                onSelectLead={(l) => setSelectedLead(l)}
+                onOpenWhatsApp={(l) => setWhatsAppLead(l)}
+                onOpenNewLead={(stage) => {
+                  setNewLeadStage(stage || 'New Lead');
+                  setIsNewLeadOpen(true);
+                }}
+              />
+            </div>
           )}
 
-          {activeTab === 'table' && (
+          {/* Table / Leads Directory View (Primary view on mobile) */}
+          {(activeTab === 'table' || (activeTab === 'pipeline' && typeof window !== 'undefined' && window.innerWidth < 1024)) && (
             <TableView
               leads={searchedLeads}
               config={config}
@@ -426,46 +442,40 @@ export function App() {
         </main>
       </div>
 
-      {/* Mobile Floating Action Button (FAB) */}
+      {/* Mobile Floating Action Button (FAB) for '+ Add Lead' */}
       <button
         onClick={() => {
           setNewLeadStage('New Lead');
           setIsNewLeadOpen(true);
         }}
-        className="lg:hidden fixed bottom-20 right-4 z-40 w-13 h-13 p-3.5 rounded-2xl bg-brand-600 hover:bg-brand-500 text-white shadow-2xl shadow-brand-500/50 border border-white/20 active:scale-95 transition-all flex items-center justify-center"
+        className="lg:hidden fixed bottom-20 right-4 z-40 w-12 h-12 rounded-2xl bg-brand-600 hover:bg-brand-500 text-white shadow-xl shadow-brand-500/40 border border-white/20 active:scale-95 transition-all flex items-center justify-center"
         title="Add New Lead"
       >
-        <Plus className="w-6 h-6 stroke-[2.5]" />
+        <Plus className="w-5 h-5 stroke-[2.5]" />
       </button>
 
-      {/* Mobile Bottom Navigation Bar */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 flex items-center justify-around px-2 z-30 shadow-2xl">
-        {[
-          { id: 'pipeline' as ActiveTab, label: 'Pipeline', icon: KanbanSquare, badge: leads.length },
-          { id: 'table' as ActiveTab, label: 'Leads', icon: Table2, badge: leads.length },
-          { id: 'analytics' as ActiveTab, label: 'Analytics', icon: BarChart3 },
-          { id: 'tasks' as ActiveTab, label: 'Tasks', icon: CheckSquare, badge: pendingTasksCount },
-          { id: 'settings' as ActiveTab, label: 'Setup', icon: Settings2 },
-        ].map((tab) => {
+      {/* ========================================================================= */}
+      {/* MOBILE BOTTOM NAVIGATION BAR (4 Clean Balanced Tabs) */}
+      {/* ========================================================================= */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800 flex items-center justify-around px-3 z-30 shadow-2xl">
+        {mobileNavTabs.map((tab) => {
           const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
+          const isActive = activeTab === tab.id || (tab.id === 'table' && activeTab === 'pipeline');
           return (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex flex-col items-center justify-center py-1 relative transition-all ${
+              className={`flex-1 flex flex-col items-center justify-center py-1.5 relative transition-all ${
                 isActive ? 'text-brand-400 font-bold' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
               <div className="relative">
                 <Icon className={`w-5 h-5 transition-transform ${isActive ? 'scale-110 text-brand-400' : ''}`} />
-                {tab.badge && tab.badge > 0 && (
-                  <span className="absolute -top-1.5 -right-2.5 px-1 min-w-[14px] h-[14px] rounded-full bg-brand-500 text-[9px] font-bold text-white flex items-center justify-center">
-                    {tab.badge > 99 ? '99+' : tab.badge}
-                  </span>
+                {tab.count !== undefined && tab.count > 0 && tab.id === 'tasks' && (
+                  <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-slate-900" />
                 )}
               </div>
-              <span className={`text-[10px] mt-0.5 ${isActive ? 'font-bold' : 'font-medium'}`}>
+              <span className={`text-[11px] mt-1 tracking-tight ${isActive ? 'font-bold text-slate-100' : 'font-medium text-slate-400'}`}>
                 {tab.label}
               </span>
               {isActive && (

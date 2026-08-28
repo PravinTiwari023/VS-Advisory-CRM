@@ -5,11 +5,11 @@ import {
   MessageSquare, 
   Phone, 
   Mail, 
-  Tag,
-  Wallet,
-  Layers,
   Filter,
-  X
+  X,
+  SlidersHorizontal,
+  RotateCcw,
+  Check
 } from 'lucide-react';
 import { Lead, DEFAULT_STAGES, SheetConfig } from '../types';
 
@@ -33,7 +33,7 @@ export const TableView: React.FC<TableViewProps> = ({
   const [filterPlatform, setFilterPlatform] = useState('ALL');
   const [filterCampaign, setFilterCampaign] = useState('ALL');
   const [filterStage, setFilterStage] = useState('ALL');
-  const [showFiltersMobile, setShowFiltersMobile] = useState(false);
+  const [showFilterModal, setShowFilterModal] = useState(false);
 
   // Dynamic unique list of source sheets from leads or config
   const sourceSheets = useMemo(() => {
@@ -92,6 +92,18 @@ export const TableView: React.FC<TableViewProps> = ({
       return true;
     });
   }, [leads, search, filterSource, filterPlatform, filterCampaign, filterStage]);
+
+  // Reset Filters
+  const handleResetFilters = () => {
+    setSearch('');
+    setFilterSource('ALL');
+    setFilterPlatform('ALL');
+    setFilterCampaign('ALL');
+    setFilterStage('ALL');
+    setShowFilterModal(false);
+  };
+
+  const hasActiveFilters = filterSource !== 'ALL' || filterPlatform !== 'ALL' || filterCampaign !== 'ALL' || filterStage !== 'ALL' || search.trim() !== '';
 
   // CSV Exporter
   const handleExportCSV = () => {
@@ -152,12 +164,10 @@ export const TableView: React.FC<TableViewProps> = ({
     }
   };
 
-  const hasActiveFilters = filterSource !== 'ALL' || filterPlatform !== 'ALL' || filterCampaign !== 'ALL' || filterStage !== 'ALL';
-
   return (
     <div className="flex-1 flex flex-col p-3 sm:p-4 md:p-6 overflow-hidden">
-      {/* Top Header & Actions */}
-      <div className="flex items-center justify-between gap-2 mb-3 shrink-0">
+      {/* Top Header & Search Bar */}
+      <div className="flex items-center justify-between gap-2 mb-2.5 shrink-0">
         <div>
           <h2 className="text-base sm:text-lg font-bold text-slate-100">Leads Directory</h2>
           <p className="text-[11px] sm:text-xs text-slate-400">
@@ -166,18 +176,21 @@ export const TableView: React.FC<TableViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center space-x-2">
-          {/* Mobile Filter Toggle */}
+        <div className="flex items-center space-x-1.5">
+          {/* Mobile Filter Button */}
           <button
-            onClick={() => setShowFiltersMobile(!showFiltersMobile)}
-            className={`md:hidden p-2 rounded-xl border text-xs font-semibold flex items-center space-x-1 transition-all ${
+            onClick={() => setShowFilterModal(true)}
+            className={`md:hidden px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center space-x-1.5 transition-all ${
               hasActiveFilters
                 ? 'bg-brand-600/20 text-brand-300 border-brand-500/40'
                 : 'bg-slate-800 text-slate-300 border-slate-700'
             }`}
           >
-            <Filter className="w-3.5 h-3.5" />
-            <span>Filters</span>
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Filter</span>
+            {hasActiveFilters && (
+              <span className="w-2 h-2 rounded-full bg-brand-400" />
+            )}
           </button>
 
           {/* Export CSV */}
@@ -192,9 +205,61 @@ export const TableView: React.FC<TableViewProps> = ({
         </div>
       </div>
 
-      {/* Multi-Filters Bar (Responsive Grid on Desktop, Collapsible on Mobile) */}
-      <div className={`${showFiltersMobile ? 'block' : 'hidden'} md:grid bg-slate-900/80 border border-slate-800 rounded-2xl p-3 mb-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 shrink-0 animate-in fade-in-50`}>
-        {/* Search */}
+      {/* ========================================================================= */}
+      {/* MOBILE QUICK FILTER PILLS (Horizontal Scroll on < md) */}
+      {/* ========================================================================= */}
+      <div className="md:hidden flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-none shrink-0 pr-2">
+        {/* Quick Platform Filters */}
+        <button
+          onClick={() => setFilterPlatform(filterPlatform === 'ALL' ? 'fb' : filterPlatform === 'fb' ? 'ig' : 'ALL')}
+          className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold whitespace-nowrap flex items-center gap-1 transition-all ${
+            filterPlatform !== 'ALL'
+              ? 'bg-brand-600/20 border-brand-500 text-brand-300'
+              : 'bg-slate-900 border-slate-800 text-slate-400'
+          }`}
+        >
+          <span>Platform: {filterPlatform.toUpperCase()}</span>
+        </button>
+
+        {/* Quick Sheet Filter */}
+        <button
+          onClick={() => setShowFilterModal(true)}
+          className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold whitespace-nowrap flex items-center gap-1 transition-all ${
+            filterSource !== 'ALL'
+              ? 'bg-brand-600/20 border-brand-500 text-brand-300'
+              : 'bg-slate-900 border-slate-800 text-slate-400'
+          }`}
+        >
+          <span>Sheet: {filterSource === 'ALL' ? 'All' : filterSource}</span>
+        </button>
+
+        {/* Quick Stage Filter */}
+        <button
+          onClick={() => setShowFilterModal(true)}
+          className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold whitespace-nowrap flex items-center gap-1 transition-all ${
+            filterStage !== 'ALL'
+              ? 'bg-brand-600/20 border-brand-500 text-brand-300'
+              : 'bg-slate-900 border-slate-800 text-slate-400'
+          }`}
+        >
+          <span>Stage: {filterStage === 'ALL' ? 'All' : filterStage}</span>
+        </button>
+
+        {hasActiveFilters && (
+          <button
+            onClick={handleResetFilters}
+            className="px-2 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[11px] font-semibold flex items-center gap-1 shrink-0"
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>Reset</span>
+          </button>
+        )}
+      </div>
+
+      {/* ========================================================================= */}
+      {/* DESKTOP FILTER BAR (Visible on >= md) */}
+      {/* ========================================================================= */}
+      <div className="hidden md:grid bg-slate-900/80 border border-slate-800 rounded-2xl p-3 mb-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 shrink-0">
         <div className="relative">
           <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
@@ -206,7 +271,6 @@ export const TableView: React.FC<TableViewProps> = ({
           />
         </div>
 
-        {/* Dynamic Source Sheet Filter */}
         <div>
           <select
             value={filterSource}
@@ -222,7 +286,6 @@ export const TableView: React.FC<TableViewProps> = ({
           </select>
         </div>
 
-        {/* Platform Filter */}
         <div>
           <select
             value={filterPlatform}
@@ -235,7 +298,6 @@ export const TableView: React.FC<TableViewProps> = ({
           </select>
         </div>
 
-        {/* Stage Filter */}
         <div>
           <select
             value={filterStage}
@@ -251,7 +313,6 @@ export const TableView: React.FC<TableViewProps> = ({
           </select>
         </div>
 
-        {/* Campaign Filter */}
         <div>
           <select
             value={filterCampaign}
@@ -269,13 +330,21 @@ export const TableView: React.FC<TableViewProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* MOBILE LEAD CARDS FEED (Visible on < md screens) */}
+      {/* MOBILE LEAD CARDS FEED (Visible on < md) */}
       {/* ========================================================================= */}
-      <div className="md:hidden flex-1 overflow-y-auto space-y-2.5 pb-20 custom-scrollbar pr-0.5">
+      <div className="md:hidden flex-1 overflow-y-auto space-y-2.5 pb-24 custom-scrollbar pr-0.5">
         {filteredLeads.length === 0 ? (
-          <div className="p-8 text-center bg-slate-900/60 rounded-2xl border border-slate-800 mt-4 space-y-1">
+          <div className="p-8 text-center bg-slate-900/60 rounded-2xl border border-slate-800 mt-4 space-y-2">
             <p className="text-sm font-semibold text-slate-300">No leads match filters</p>
-            <p className="text-xs text-slate-400">Try clearing filters or search keywords.</p>
+            <p className="text-xs text-slate-400">Try adjusting your filters or search query.</p>
+            {hasActiveFilters && (
+              <button
+                onClick={handleResetFilters}
+                className="mt-2 inline-flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-brand-600 text-white font-bold text-xs"
+              >
+                <span>Reset Filters</span>
+              </button>
+            )}
           </div>
         ) : (
           filteredLeads.map((lead) => {
@@ -373,7 +442,7 @@ export const TableView: React.FC<TableViewProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* DESKTOP DATA GRID (Visible on >= md screens) */}
+      {/* DESKTOP DATA GRID (Visible on >= md) */}
       {/* ========================================================================= */}
       <div className="hidden md:flex flex-1 bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-xl flex-col">
         <div className="overflow-x-auto flex-1 custom-scrollbar">
@@ -409,7 +478,6 @@ export const TableView: React.FC<TableViewProps> = ({
                       onClick={() => onSelectLead(lead)}
                       className="hover:bg-slate-800/60 transition-colors cursor-pointer group"
                     >
-                      {/* Lead Info */}
                       <td className="py-3.5 px-4">
                         <div className="font-semibold text-slate-100 group-hover:text-brand-300 transition-colors">
                           {lead.full_name || 'Unnamed Lead'}
@@ -434,7 +502,6 @@ export const TableView: React.FC<TableViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Contact */}
                       <td className="py-3.5 px-4 space-y-0.5">
                         <div className="text-slate-200 font-medium">{lead.phone_number || '-'}</div>
                         <div className="text-slate-400 text-[11px] truncate max-w-[180px]">
@@ -442,7 +509,6 @@ export const TableView: React.FC<TableViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Requirements & Budget */}
                       <td className="py-3.5 px-4 space-y-1">
                         {configInterests ? (
                           <div className="inline-block px-2 py-0.5 rounded bg-brand-500/10 text-brand-300 border border-brand-500/20 font-medium text-[11px]">
@@ -458,7 +524,6 @@ export const TableView: React.FC<TableViewProps> = ({
                         )}
                       </td>
 
-                      {/* Campaign & Ad */}
                       <td className="py-3.5 px-4 space-y-0.5 max-w-[200px]">
                         <div className="text-slate-200 font-medium truncate" title={lead.campaign_name}>
                           {lead.campaign_name || '-'}
@@ -468,7 +533,6 @@ export const TableView: React.FC<TableViewProps> = ({
                         </div>
                       </td>
 
-                      {/* Stage Selector */}
                       <td className="py-3.5 px-4" onClick={(e) => e.stopPropagation()}>
                         <select
                           value={lead.lead_status || 'New Lead'}
@@ -483,12 +547,10 @@ export const TableView: React.FC<TableViewProps> = ({
                         </select>
                       </td>
 
-                      {/* Created Time */}
                       <td className="py-3.5 px-4 text-slate-400 text-[11px]">
                         {formatDate(lead.created_time)}
                       </td>
 
-                      {/* Quick Actions */}
                       <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
                           {lead.phone_number && (
@@ -528,6 +590,127 @@ export const TableView: React.FC<TableViewProps> = ({
           </table>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* MOBILE FULL FILTER BOTTOM DRAWER MODAL */}
+      {/* ========================================================================= */}
+      {showFilterModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center p-0 bg-black/80 backdrop-blur-sm animate-in fade-in-50">
+          <div className="absolute inset-0" onClick={() => setShowFilterModal(false)} />
+
+          <div className="relative w-full bg-slate-900 border-t border-slate-800 rounded-t-3xl shadow-2xl p-5 space-y-4 max-h-[85vh] overflow-y-auto z-10 animate-in slide-in-from-bottom-10">
+            {/* Grab Handle */}
+            <div className="flex justify-center pb-1">
+              <div className="w-12 h-1.5 rounded-full bg-slate-700" />
+            </div>
+
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4 text-brand-400" />
+                <span>Filter Leads</span>
+              </h3>
+              <button
+                onClick={() => setShowFilterModal(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Filter Inputs */}
+            <div className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Source Sheet</label>
+                <select
+                  value={filterSource}
+                  onChange={(e) => setFilterSource(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-brand-500"
+                >
+                  <option value="ALL">All Connected Sheets ({sourceSheets.length})</option>
+                  {sourceSheets.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Platform</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'ALL', label: 'All' },
+                    { id: 'fb', label: 'Facebook' },
+                    { id: 'ig', label: 'Instagram' }
+                  ].map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setFilterPlatform(p.id)}
+                      className={`py-2 rounded-xl border text-xs font-semibold transition-all ${
+                        filterPlatform === p.id
+                          ? 'bg-brand-600 text-white border-brand-500 shadow'
+                          : 'bg-slate-950 border-slate-800 text-slate-400'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Pipeline Stage</label>
+                <select
+                  value={filterStage}
+                  onChange={(e) => setFilterStage(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-brand-500"
+                >
+                  <option value="ALL">All Stages</option>
+                  {DEFAULT_STAGES.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-slate-400 font-semibold mb-1">Campaign</label>
+                <select
+                  value={filterCampaign}
+                  onChange={(e) => setFilterCampaign(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-slate-200 text-xs focus:outline-none focus:ring-1 focus:ring-brand-500"
+                >
+                  <option value="ALL">All Campaigns ({campaigns.length})</option>
+                  {campaigns.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
+              <button
+                onClick={handleResetFilters}
+                className="w-1/3 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-semibold text-xs transition-colors text-center"
+              >
+                Reset All
+              </button>
+              <button
+                onClick={() => setShowFilterModal(false)}
+                className="w-2/3 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-lg transition-all text-center"
+              >
+                Apply Filters ({filteredLeads.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
