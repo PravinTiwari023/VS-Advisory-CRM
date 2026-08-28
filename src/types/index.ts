@@ -148,6 +148,25 @@ export const DEFAULT_STAGES: PipelineStage[] = [
   },
 ];
 
+export function normalizeStage(rawStatus?: string): string {
+  if (!rawStatus) return 'New Lead';
+  const s = String(rawStatus).trim().toLowerCase().replace(/[-_]+/g, ' ');
+  
+  if (s.includes('new') || s === '' || s.includes('lead')) return 'New Lead';
+  if (s.includes('contact') || s.includes('call') || s.includes('reach')) return 'Contacted';
+  if (s.includes('interest') || s.includes('warm') || s.includes('hot')) return 'Interested';
+  if (s.includes('site') || s.includes('visit') || s.includes('consult') || s.includes('meet')) return 'Site Visit / Consultation';
+  if (s.includes('nego') || s.includes('offer') || s.includes('deal') || s.includes('discuss')) return 'Negotiation';
+  if (s.includes('won') || s.includes('close') || s.includes('book') || s.includes('sold')) return 'Closed Won';
+  if (s.includes('lost') || s.includes('drop') || s.includes('not') || s.includes('junk') || s.includes('fake')) return 'Not Interested / Lost';
+
+  // Direct match fallback
+  const found = DEFAULT_STAGES.find(st => st.id.toLowerCase() === s || st.label.toLowerCase() === s);
+  if (found) return found.id;
+
+  return 'New Lead';
+}
+
 export interface ConnectedSheet {
   id: string;
   name: string;

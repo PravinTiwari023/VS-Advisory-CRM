@@ -8,7 +8,7 @@ import {
   Layers,
   ChevronRight
 } from 'lucide-react';
-import { Lead, DEFAULT_STAGES, getLeadConfiguration, getLeadBudget } from '../types';
+import { Lead, DEFAULT_STAGES, getLeadConfiguration, getLeadBudget, normalizeStage } from '../types';
 
 interface KanbanBoardProps {
   leads: Lead[];
@@ -27,10 +27,10 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
 }) => {
   const [activeMobileStage, setActiveMobileStage] = useState<string>(DEFAULT_STAGES[0].id);
 
-  // Group leads by stage
+  // Group leads by normalized stage
   const leadsByStage = DEFAULT_STAGES.reduce<Record<string, Lead[]>>((acc, stage) => {
     acc[stage.id] = leads.filter(
-      (lead) => (lead.lead_status || 'New Lead').toLowerCase() === stage.id.toLowerCase()
+      (lead) => normalizeStage(lead.lead_status) === stage.id
     );
     return acc;
   }, {});
@@ -174,7 +174,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                   <div className="flex items-center justify-between pt-2.5 border-t border-slate-800 gap-2">
                     <div className="flex-1" onClick={(e) => e.stopPropagation()}>
                       <select
-                        value={lead.lead_status || 'New Lead'}
+                        value={normalizeStage(lead.lead_status)}
                         onChange={(e) => onUpdateLeadStage(lead.id, e.target.value)}
                         className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2 py-1.5 text-xs font-semibold text-slate-200 focus:outline-none"
                       >

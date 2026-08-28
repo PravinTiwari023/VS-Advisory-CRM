@@ -48,13 +48,7 @@ const LOCAL_STORAGE_LEADS_CACHE = 'vs_crm_leads_cache';
 
 export function App() {
   const [config, setConfig] = useState<SheetConfig>(getSavedConfig());
-  // Default to 'table' on mobile, 'pipeline' on desktop
-  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-      return 'table';
-    }
-    return 'pipeline';
-  });
+  const [activeTab, setActiveTab] = useState<ActiveTab>('pipeline');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Firebase Auth State
@@ -282,7 +276,9 @@ export function App() {
       l.ad_name?.toLowerCase().includes(q) ||
       l.sheet_source?.toLowerCase().includes(q) ||
       l['which_configuration_are_you_interested_in?']?.toLowerCase().includes(q) ||
-      l['what_is_your_budget?']?.toLowerCase().includes(q)
+      l['what_are_you_looking_for?']?.toLowerCase().includes(q) ||
+      l['what_is_your_budget?']?.toLowerCase().includes(q) ||
+      l['what_is_your_budget']?.toLowerCase().includes(q)
     );
   });
 
@@ -303,7 +299,6 @@ export function App() {
     return <AuthScreen onSuccess={() => {}} />;
   }
 
-  // Define mobile navigation tabs (hiding pipeline page on mobile)
   const mobileNavTabs: { id: ActiveTab; label: string; icon: any; count?: number }[] = [
     { id: 'table', label: 'Leads', icon: Table2, count: leads.length },
     { id: 'tasks', label: 'Tasks', icon: ListTodo, count: pendingTasksCount },
@@ -361,7 +356,7 @@ export function App() {
 
       {/* Main Layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Desktop Sidebar (Only visible on >= lg) */}
+        {/* Desktop Sidebar */}
         <Sidebar
           activeTab={activeTab}
           onSelectTab={setActiveTab}
@@ -373,7 +368,6 @@ export function App() {
 
         {/* Content Area */}
         <main className="flex-1 flex flex-col overflow-hidden bg-slate-950 pb-16 lg:pb-0">
-          {/* Disconnected Alert Banner */}
           {!isConnected && activeTab !== 'settings' && (
             <div className="p-2.5 sm:p-4 bg-amber-950/40 border-b border-amber-500/30 flex items-center justify-between px-3 sm:px-6 text-xs shrink-0">
               <div className="flex items-center space-x-2 text-amber-300 min-w-0">
@@ -391,24 +385,22 @@ export function App() {
             </div>
           )}
 
-          {/* Desktop Pipeline View (Hidden on mobile) */}
+          {/* Pipeline Board */}
           {activeTab === 'pipeline' && (
-            <div className="hidden lg:flex flex-1 flex-col overflow-hidden">
-              <KanbanBoard
-                leads={searchedLeads}
-                onUpdateLeadStage={handleUpdateLeadStage}
-                onSelectLead={(l) => setSelectedLead(l)}
-                onOpenWhatsApp={(l) => setWhatsAppLead(l)}
-                onOpenNewLead={(stage) => {
-                  setNewLeadStage(stage || 'New Lead');
-                  setIsNewLeadOpen(true);
-                }}
-              />
-            </div>
+            <KanbanBoard
+              leads={searchedLeads}
+              onUpdateLeadStage={handleUpdateLeadStage}
+              onSelectLead={(l) => setSelectedLead(l)}
+              onOpenWhatsApp={(l) => setWhatsAppLead(l)}
+              onOpenNewLead={(stage) => {
+                setNewLeadStage(stage || 'New Lead');
+                setIsNewLeadOpen(true);
+              }}
+            />
           )}
 
-          {/* Table / Leads Directory View (Primary view on mobile) */}
-          {(activeTab === 'table' || (activeTab === 'pipeline' && typeof window !== 'undefined' && window.innerWidth < 1024)) && (
+          {/* Table / Leads Directory View */}
+          {activeTab === 'table' && (
             <TableView
               leads={searchedLeads}
               config={config}
@@ -442,7 +434,7 @@ export function App() {
         </main>
       </div>
 
-      {/* Mobile Floating Action Button (FAB) for '+ Add Lead' */}
+      {/* Mobile Floating Action Button (FAB) */}
       <button
         onClick={() => {
           setNewLeadStage('New Lead');
@@ -454,13 +446,11 @@ export function App() {
         <Plus className="w-5 h-5 stroke-[2.5]" />
       </button>
 
-      {/* ========================================================================= */}
-      {/* MOBILE BOTTOM NAVIGATION BAR (4 Clean Balanced Tabs) */}
-      {/* ========================================================================= */}
+      {/* Mobile Bottom Navigation Bar */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800 flex items-center justify-around px-3 z-30 shadow-2xl">
         {mobileNavTabs.map((tab) => {
           const Icon = tab.icon;
-          const isActive = activeTab === tab.id || (tab.id === 'table' && activeTab === 'pipeline');
+          const isActive = activeTab === tab.id;
           return (
             <button
               key={tab.id}
