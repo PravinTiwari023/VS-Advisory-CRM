@@ -9,11 +9,17 @@ import {
   RefreshCw, 
   FileCode, 
   Database, 
-  SearchCode,
+  SearchCode, 
   FileSpreadsheet,
   Plus,
   Trash2,
-  Layers
+  Layers,
+  Lock,
+  Unlock,
+  ShieldCheck,
+  KeyRound,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { SheetConfig, SpreadsheetInfo, ConnectedSheet, SHEET_COLORS } from '../types';
 import { testConnection, testSingleSheet, runMasterSetup, extractCleanId, CURRENT_LATEST_SCRIPT_URL } from '../services/api';
@@ -27,6 +33,9 @@ interface SettingsViewProps {
   diagnostics?: string[];
 }
 
+const ADMIN_SETUP_PASSWORD = 'Vivek@VS2026';
+const SESSION_STORAGE_KEY_UNLOCKED = 'vs_crm_setup_unlocked_session';
+
 export const SettingsView: React.FC<SettingsViewProps> = ({
   config,
   onSaveConfig,
@@ -35,6 +44,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   spreadsheetInfo,
   diagnostics
 }) => {
+  // Password Lock State
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem(SESSION_STORAGE_KEY_UNLOCKED) === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [inputPassword, setInputPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
   const [scriptUrl, setScriptUrl] = useState(config.scriptUrl || CURRENT_LATEST_SCRIPT_URL);
   const [sheets, setSheets] = useState<ConnectedSheet[]>(config.sheets || [
     {
@@ -54,6 +75,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [copiedCode, setCopiedCode] = useState(false);
   const [initializing, setInitializing] = useState(false);
   const [initResult, setInitResult] = useState<string | null>(null);
+
+  // Handle Password Unlock
+  const handleUnlock = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inputPassword === ADMIN_SETUP_PASSWORD) {
+      setIsUnlocked(true);
+      setPasswordError(null);
+      try {
+        sessionStorage.setItem(SESSION_STORAGE_KEY_UNLOCKED, 'true');
+      } catch {}
+    } else {
+      setPasswordError('Invalid Admin Password. Access Denied.');
+    }
+  };
+
+  // Re-lock
+  const handleLock = () => {
+    setIsUnlocked(false);
+    setInputPassword('');
+    try {
+      sessionStorage.removeItem(SESSION_STORAGE_KEY_UNLOCKED);
+    } catch {}
+  };
 
   // Add new sheet card
   const handleAddSheet = () => {
@@ -196,17 +240,95 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setTimeout(() => setCopiedCode(false), 2500);
   };
 
+  // =========================================================================
+  // IF LOCKED: RENDER ADMIN SECURITY LOCK SCREEN
+  // =========================================================================
+  if (!isUnlocked) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 text-center animate-in fade-in-50">
+        <div className="w-full max-w-sm bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-5 relative">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto shadow-lg shadow-amber-500/10">
+            <Lock className="w-7 h-7" />
+          </div>
+
+          <div className="space-y-1.5">
+            <h3 className="text-lg font-bold text-slate-100">Admin Security Verification</h3>
+            <p className="text-xs text-slate-400">
+              Google Sheets configuration and API endpoints are restricted. Please enter the master password.
+            </p>
+          </div>
+
+          {passwordError && (
+            <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 text-rose-300 text-xs flex items-center space-x-2 text-left">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+              <span>{passwordError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleUnlock} className="space-y-3 text-xs">
+            <div className="relative text-left">
+              <KeyRound className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={inputPassword}
+                onChange={(e) => setInputPassword(e.target.value)}
+                placeholder="Enter Admin Password"
+                required
+                autoFocus
+                className="w-full bg-slate-950 border border-slate-700/80 rounded-xl pl-10 pr-10 py-2.5 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-lg shadow-brand-600/30 transition-all flex items-center justify-center space-x-2 active:scale-95"
+            >
+              <Unlock className="w-3.5 h-3.5" />
+              <span>Unlock Google Sheets Setup</span>
+            </button>
+          </form>
+
+          <div className="pt-2 border-t border-slate-800/80 text-[11px] text-slate-500 flex items-center justify-center gap-1">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Protected Admin Area</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // IF UNLOCKED: RENDER FULL SETTINGS VIEW
+  // =========================================================================
   return (
     <div className="flex-1 p-3 sm:p-6 overflow-y-auto custom-scrollbar space-y-4 sm:space-y-6 max-w-4xl pb-24 lg:pb-8">
-      {/* Top Header */}
-      <div>
-        <h2 className="text-lg sm:text-xl font-bold text-slate-100 flex items-center gap-2">
-          <Database className="w-5 h-5 text-brand-400 shrink-0" />
-          <span>Google Sheets Setup</span>
-        </h2>
-        <p className="text-xs text-slate-400 mt-0.5">
-          Connect your Meta Ads Google Sheets. Leads merge into your CRM in real-time.
-        </p>
+      {/* Top Header with Re-Lock Button */}
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h2 className="text-lg sm:text-xl font-bold text-slate-100 flex items-center gap-2">
+            <Database className="w-5 h-5 text-brand-400 shrink-0" />
+            <span>Google Sheets Setup</span>
+          </h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Connect your Meta Ads Google Sheets. Leads merge into your CRM in real-time.
+          </p>
+        </div>
+
+        <button
+          onClick={handleLock}
+          className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition-colors shrink-0"
+          title="Lock Setup Area"
+        >
+          <Lock className="w-3.5 h-3.5 text-amber-400" />
+          <span>Lock</span>
+        </button>
       </div>
 
       {/* Live Spreadsheet Inspector */}
