@@ -1,6 +1,6 @@
 /**
  * =========================================================================
- * VS ADVISORY CRM - GOOGLE APPS SCRIPT BACKEND REST API (v4.0 - SINGLE FILE SELF-CONTAINED)
+ * VS ADVISORY CRM - GOOGLE APPS SCRIPT BACKEND REST API (v4.1 - MULTI-COLUMN COMPATIBLE)
  * =========================================================================
  */
 
@@ -285,10 +285,14 @@ function getInitialData(params) {
   })).setMimeType(ContentService.MimeType.JSON);
 }
 
+/**
+ * Read Leads with intelligent header detection & universal column synonym matching
+ */
 function readLeadsFromSheet(sheet, sourceTag, spreadsheetId, sourceColor) {
   var data = sheet.getDataRange().getValues();
   if (!data || data.length < 2) return [];
 
+  // Find true Header Row (scan first 5 rows)
   var headerRowIdx = 0;
   for (var r = 0; r < Math.min(5, data.length); r++) {
     var rowStr = data[r].map(function(c) { return String(c || '').toLowerCase(); }).join(" ");
@@ -306,7 +310,12 @@ function readLeadsFromSheet(sheet, sourceTag, spreadsheetId, sourceColor) {
   }
 
   var rawHeaders = data[headerRowIdx].map(function(h) { return String(h || '').trim(); });
-  var headers = rawHeaders.map(function(h) { return h.toLowerCase().replace(/[\n\r]+/g, ' '); });
+  var headers = rawHeaders.map(function(h) { 
+    return h.toLowerCase()
+      .replace(/[\n\r]+/g, ' ')
+      .replace(/\s+/g, '_')
+      .trim(); 
+  });
   var rows = data.slice(headerRowIdx + 1);
   var leads = [];
 
@@ -321,20 +330,21 @@ function readLeadsFromSheet(sheet, sourceTag, spreadsheetId, sourceColor) {
       row_index: headerRowIdx + idx + 2
     };
 
+    // Store raw mapped keys
     headers.forEach(function(h, colIdx) {
       var val = row[colIdx];
       if (val instanceof Date) val = val.toISOString();
       leadObj[h] = val !== undefined && val !== null ? String(val).trim() : "";
     });
 
+    // 1. Universal Full Name Matcher
     if (!leadObj.full_name) {
       leadObj.full_name = 
         leadObj['full_name'] || 
-        leadObj['full name'] || 
         leadObj['name'] || 
         leadObj['first_name'] || 
-        leadObj['customer name'] || 
-        leadObj['lead name'] || 
+        leadObj['customer_name'] || 
+        leadObj['lead_name'] || 
         "";
       
       if (!leadObj.full_name) {
@@ -346,31 +356,32 @@ function readLeadsFromSheet(sheet, sourceTag, spreadsheetId, sourceColor) {
           }
         }
       }
-
       if (!leadObj.full_name) {
         leadObj.full_name = "Lead #" + (idx + 1);
       }
     }
 
+    // 2. Universal Phone Number Matcher
     if (!leadObj.phone_number) {
       leadObj.phone_number = 
         leadObj['phone_number'] || 
-        leadObj['phone number'] || 
         leadObj['phone'] || 
         leadObj['mobile'] || 
         leadObj['contact'] || 
+        leadObj['phone_no'] || 
         leadObj['whatsapp'] || 
         "";
     }
 
+    // 3. Universal Email Matcher
     if (!leadObj.email) {
       leadObj.email = 
         leadObj['email'] || 
-        leadObj['email address'] || 
         leadObj['email_address'] || 
         "";
     }
 
+    // 4. Universal Pipeline Stage Matcher
     if (!leadObj.lead_status || leadObj.lead_status.trim() === "") {
       leadObj.lead_status = 
         leadObj['lead_status'] || 
@@ -380,23 +391,29 @@ function readLeadsFromSheet(sheet, sourceTag, spreadsheetId, sourceColor) {
         "New Lead";
     }
 
-    if (!leadObj['which_configuration_are_you_interested_in?']) {
-      leadObj['which_configuration_are_you_interested_in?'] = 
-        leadObj['which_configuration_are_you_interested_in?'] ||
-        leadObj['configuration'] ||
-        leadObj['service'] ||
-        leadObj['interested in'] ||
-        "";
-    }
+    // 5. Universal Configuration / Requirement Matcher (Supports Kanakia & H.Rishabraj)
+    leadObj['which_configuration_are_you_interested_in?'] = 
+      leadObj['which_configuration_are_you_interested_in?'] ||
+      leadObj['which_configuration_are_you_interested_in'] ||
+      leadObj['what_are_you_looking_for?'] ||
+      leadObj['what_are_you_looking_for'] ||
+      leadObj['configuration'] ||
+      leadObj['requirement'] ||
+      leadObj['service'] ||
+      leadObj['interested_in'] ||
+      leadObj['looking_for'] ||
+      "";
 
-    if (!leadObj['what_is_your_budget?']) {
-      leadObj['what_is_your_budget?'] = 
-        leadObj['what_is_your_budget?'] ||
-        leadObj['budget'] ||
-        leadObj['price range'] ||
-        "";
-    }
+    // 6. Universal Budget Matcher (Supports with or without question mark)
+    leadObj['what_is_your_budget?'] = 
+      leadObj['what_is_your_budget?'] ||
+      leadObj['what_is_your_budget'] ||
+      leadObj['budget'] ||
+      leadObj['price_range'] ||
+      leadObj['budget_range'] ||
+      "";
 
+    // 7. Auto-generate ID if missing
     if (!leadObj.id || leadObj.id.trim() === "") {
       leadObj.id = "LEAD-" + (sourceTag.replace(/[^a-zA-Z0-9]/g, '')) + "-" + (idx + 2);
     }
@@ -416,7 +433,7 @@ function updateLead(payload) {
   if (!sheet) return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: 'Target sheet tab not found' })).setMimeType(ContentService.MimeType.JSON);
 
   var data = sheet.getDataRange().getValues();
-  var headers = data[0].map(function(h) { return String(h || '').trim().toLowerCase(); });
+  var headers = data[0].map(function(h) { return String(h || '').trim().toLowerCase().replace(/\s+/g, '_'); });
   var targetRowIndex = payload.row_index;
 
   if (!targetRowIndex || targetRowIndex < 2 || targetRowIndex > data.length) {
