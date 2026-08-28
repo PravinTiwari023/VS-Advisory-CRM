@@ -40,6 +40,7 @@ import {
   CheckSquare, 
   Settings2,
   Sparkles,
+  Plus,
   Loader2
 } from 'lucide-react';
 
@@ -267,7 +268,6 @@ export function App() {
 
   const pendingTasksCount = tasks.filter((t) => t.status === 'Pending').length;
 
-  // Initial Auth Loading Spinner
   if (authLoading) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-4">
@@ -279,31 +279,30 @@ export function App() {
     );
   }
 
-  // If Not Logged In, Render Firebase Auth Screen
   if (!authUser) {
     return <AuthScreen onSuccess={() => {}} />;
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 font-['Plus_Jakarta_Sans',sans-serif]">
+    <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 font-['Plus_Jakarta_Sans',sans-serif] selection:bg-brand-500 selection:text-white">
       {/* Toast Notification */}
       {toast && (
-        <div className="fixed bottom-5 right-5 z-50 animate-in slide-in-from-bottom-5">
+        <div className="fixed top-4 sm:top-auto sm:bottom-5 right-4 sm:right-5 z-50 animate-in slide-in-from-top-5 sm:slide-in-from-bottom-5">
           <div
             className={`px-4 py-3 rounded-2xl shadow-2xl border flex items-center space-x-3 text-xs font-semibold ${
               toast.type === 'success'
-                ? 'bg-emerald-950/90 border-emerald-500/40 text-emerald-200'
+                ? 'bg-emerald-950/95 border-emerald-500/40 text-emerald-200'
                 : toast.type === 'error'
-                ? 'bg-rose-950/90 border-rose-500/40 text-rose-200'
-                : 'bg-brand-950/90 border-brand-500/40 text-brand-200'
+                ? 'bg-rose-950/95 border-rose-500/40 text-rose-200'
+                : 'bg-brand-950/95 border-brand-500/40 text-brand-200'
             }`}
           >
             {toast.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
             ) : toast.type === 'error' ? (
-              <AlertCircle className="w-4 h-4 text-rose-400" />
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
             ) : (
-              <Sparkles className="w-4 h-4 text-brand-400" />
+              <Sparkles className="w-4 h-4 text-brand-400 shrink-0" />
             )}
             <span>{toast.message}</span>
             <button
@@ -334,7 +333,7 @@ export function App() {
 
       {/* Main Layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar */}
+        {/* Desktop Sidebar */}
         <Sidebar
           activeTab={activeTab}
           onSelectTab={setActiveTab}
@@ -344,22 +343,22 @@ export function App() {
           config={config}
         />
 
-        {/* Content Area */}
-        <main className="flex-1 flex flex-col overflow-hidden bg-slate-950">
-          {/* Disconnected Alert Banner if not configured */}
+        {/* Content Area with safe bottom padding for mobile navigation bar */}
+        <main className="flex-1 flex flex-col overflow-hidden bg-slate-950 pb-16 lg:pb-0">
+          {/* Disconnected Alert Banner */}
           {!isConnected && activeTab !== 'settings' && (
-            <div className="p-4 bg-amber-950/30 border-b border-amber-500/30 flex items-center justify-between px-6 text-xs">
-              <div className="flex items-center space-x-3 text-amber-300">
+            <div className="p-3 sm:p-4 bg-amber-950/40 border-b border-amber-500/30 flex items-center justify-between px-4 sm:px-6 text-xs shrink-0">
+              <div className="flex items-center space-x-2.5 text-amber-300 min-w-0">
                 <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
-                <span>
-                  <strong>Google Sheets backend not connected yet.</strong> Link your Apps Script Web App URL to load your live Meta Ads leads.
+                <span className="truncate">
+                  <strong>Google Sheets disconnected.</strong> Link your Apps Script Web App URL.
                 </span>
               </div>
               <button
                 onClick={() => setActiveTab('settings')}
-                className="px-3 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 font-semibold"
+                className="px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/40 font-semibold shrink-0 ml-2 text-[11px] sm:text-xs"
               >
-                Connect Sheets Now
+                Connect
               </button>
             </div>
           )}
@@ -412,13 +411,29 @@ export function App() {
         </main>
       </div>
 
-      {/* Mobile Bottom Navigation Bar */}
-      <div className="lg:hidden h-16 bg-slate-900 border-t border-slate-800 flex items-center justify-around px-2 shrink-0 z-30">
+      {/* ========================================================================= */}
+      {/* MOBILE FLOATING ACTION BUTTON (FAB) FOR '+ Add Lead' */}
+      {/* ========================================================================= */}
+      <button
+        onClick={() => {
+          setNewLeadStage('New Lead');
+          setIsNewLeadOpen(true);
+        }}
+        className="lg:hidden fixed bottom-20 right-4 z-40 w-13 h-13 p-3.5 rounded-2xl bg-brand-600 hover:bg-brand-500 text-white shadow-2xl shadow-brand-500/50 border border-white/20 active:scale-95 transition-all flex items-center justify-center"
+        title="Add New Lead"
+      >
+        <Plus className="w-6 h-6 stroke-[2.5]" />
+      </button>
+
+      {/* ========================================================================= */}
+      {/* MOBILE FIXED BOTTOM NAVIGATION BAR */}
+      {/* ========================================================================= */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 flex items-center justify-around px-2 z-30 shadow-2xl">
         {[
-          { id: 'pipeline' as ActiveTab, label: 'Pipeline', icon: KanbanSquare },
-          { id: 'table' as ActiveTab, label: 'Leads', icon: Table2 },
+          { id: 'pipeline' as ActiveTab, label: 'Pipeline', icon: KanbanSquare, badge: leads.length },
+          { id: 'table' as ActiveTab, label: 'Leads', icon: Table2, badge: leads.length },
           { id: 'analytics' as ActiveTab, label: 'Analytics', icon: BarChart3 },
-          { id: 'tasks' as ActiveTab, label: 'Tasks', icon: CheckSquare },
+          { id: 'tasks' as ActiveTab, label: 'Tasks', icon: CheckSquare, badge: pendingTasksCount },
           { id: 'settings' as ActiveTab, label: 'Setup', icon: Settings2 },
         ].map((tab) => {
           const Icon = tab.icon;
@@ -427,18 +442,30 @@ export function App() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex flex-col items-center justify-center space-y-1 py-1 px-2 rounded-xl transition-all ${
-                isActive ? 'text-brand-400 font-bold' : 'text-slate-400'
+              className={`flex-1 flex flex-col items-center justify-center py-1 relative transition-all ${
+                isActive ? 'text-brand-400 font-bold' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              <Icon className="w-5 h-5" />
-              <span className="text-[10px]">{tab.label}</span>
+              <div className="relative">
+                <Icon className={`w-5 h-5 transition-transform ${isActive ? 'scale-110 text-brand-400' : ''}`} />
+                {tab.badge && tab.badge > 0 && (
+                  <span className="absolute -top-1.5 -right-2.5 px-1 min-w-[14px] h-[14px] rounded-full bg-brand-500 text-[9px] font-bold text-white flex items-center justify-center">
+                    {tab.badge > 99 ? '99+' : tab.badge}
+                  </span>
+                )}
+              </div>
+              <span className={`text-[10px] mt-0.5 ${isActive ? 'font-bold' : 'font-medium'}`}>
+                {tab.label}
+              </span>
+              {isActive && (
+                <span className="absolute top-0 w-8 h-0.5 bg-brand-400 rounded-full" />
+              )}
             </button>
           );
         })}
       </div>
 
-      {/* Modals & Slide-overs */}
+      {/* Modals & Bottom Sheets */}
       {selectedLead && (
         <LeadDetailModal
           lead={selectedLead}

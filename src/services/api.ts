@@ -2,6 +2,7 @@ import { Lead, Activity, Task, User, SheetConfig, SpreadsheetInfo, ConnectedShee
 
 const STORAGE_KEY_CONFIG = 'vs_crm_sheet_config';
 const STORAGE_KEY_USER = 'vs_crm_current_user';
+export const CURRENT_LATEST_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxU1ZGsnwRLlKOkyc6OyS5tjDbxLV0AaoJ3XyvIjI_3TjaFi5di-WNpDDsp2pY81FA_/exec';
 
 export function extractCleanId(input: string): string {
   if (!input) return '';
@@ -18,6 +19,12 @@ export const getSavedConfig = (): SheetConfig => {
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
+      // Auto-migrate if user is still pointing to the deprecated old deployment URL
+      if (parsed.scriptUrl && parsed.scriptUrl.includes('AKfycbyUNxbSxgxazp_XoZ4F3az29L_Or3M5Mz36poilP7UBBM8esKLTKPt8pvmY9jT4u4Is')) {
+        parsed.scriptUrl = CURRENT_LATEST_SCRIPT_URL;
+        saveConfig(parsed);
+      }
+
       if (parsed.scriptUrl && parsed.sheets && parsed.sheets.length > 0) {
         return parsed;
       }
@@ -28,7 +35,7 @@ export const getSavedConfig = (): SheetConfig => {
 
   // Pre-configured default settings with user's verified Web App URL & sheets
   return {
-    scriptUrl: 'https://script.google.com/macros/s/AKfycbxU1ZGsnwRLlKOkyc6OyS5tjDbxLV0AaoJ3XyvIjI_3TjaFi5di-WNpDDsp2pY81FA_/exec',
+    scriptUrl: CURRENT_LATEST_SCRIPT_URL,
     sheets: [
       {
         id: 'sheet-kanakia',
@@ -136,7 +143,7 @@ export async function apiPost(action: string, payload: Record<string, any> = {})
   } catch (err: any) {
     if (err.message && err.message.includes('Failed to fetch')) {
       throw new Error(
-        'CORS / Permission Error: Please ensure your Google Apps Script is deployed as "Execute as: Me" and "Who has access: Anyone" (New Version).'
+        'CORS / Permission Error: Please update your Web App URL in Google Sheets Setup to your newest deployment URL.'
       );
     }
     throw new Error(err.message || 'Network request failed');

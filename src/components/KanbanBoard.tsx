@@ -8,7 +8,7 @@ import {
   Clock, 
   Plus,
   Inbox,
-  Sparkles
+  ChevronRight
 } from 'lucide-react';
 import { Lead, DEFAULT_STAGES, PipelineStage } from '../types';
 
@@ -27,6 +27,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   onOpenWhatsApp,
   onOpenNewLead
 }) => {
+  const [selectedMobileStage, setSelectedMobileStage] = useState<PipelineStage>('New Lead');
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
   const [activeDropZone, setActiveDropZone] = useState<string | null>(null);
 
@@ -56,7 +57,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       return 'Lost / Disqualified';
     }
 
-    // Default fallback so NO lead is EVER hidden!
     return 'New Lead';
   };
 
@@ -99,44 +99,196 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     }
   };
 
+  const mobileStageLeads = getLeadsForStage(selectedMobileStage);
+  const activeStageConfig = DEFAULT_STAGES.find((s) => s.id === selectedMobileStage) || DEFAULT_STAGES[0];
+
   return (
-    <div className="flex-1 overflow-x-auto p-4 md:p-6 flex flex-col">
+    <div className="flex-1 flex flex-col p-3 sm:p-4 md:p-6 overflow-hidden">
       {/* Top Pipeline Summary Header */}
-      <div className="flex items-center justify-between mb-4 shrink-0">
-        <div className="flex items-center space-x-3">
-          <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+      <div className="flex items-center justify-between mb-3 shrink-0">
+        <div className="flex items-center space-x-2 sm:space-x-3">
+          <h2 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
             <span>Pipeline Kanban</span>
           </h2>
-          <span className="px-2.5 py-0.5 rounded-full bg-brand-500/15 text-brand-300 border border-brand-500/30 text-xs font-bold">
-            {leads.length} Total Leads
+          <span className="px-2 py-0.5 rounded-full bg-brand-500/15 text-brand-300 border border-brand-500/30 text-[11px] sm:text-xs font-bold">
+            {leads.length} Leads
           </span>
         </div>
 
         <button
-          onClick={() => onOpenNewLead('New Lead')}
-          className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold shadow-md shadow-brand-600/30 transition-all active:scale-95"
+          onClick={() => onOpenNewLead(selectedMobileStage)}
+          className="flex items-center space-x-1 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold shadow-md shadow-brand-600/30 transition-all active:scale-95"
         >
           <Plus className="w-3.5 h-3.5" />
-          <span>+ Add Lead</span>
+          <span>Add Lead</span>
         </button>
       </div>
 
-      {leads.length === 0 && (
-        <div className="mb-4 p-4 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between">
-          <div className="flex items-center space-x-3 text-xs text-slate-300">
-            <Inbox className="w-5 h-5 text-brand-400 shrink-0" />
-            <div>
-              <p className="font-semibold text-slate-100">No leads loaded in the pipeline yet.</p>
-              <p className="text-slate-400">
-                Go to the <strong>Google Sheet Setup</strong> tab to link your sheet, or add a lead with <strong>+ Add Lead</strong>.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ========================================================================= */}
+      {/* MOBILE STAGE TABS (Visible on < lg screens) */}
+      {/* ========================================================================= */}
+      <div className="lg:hidden flex flex-col flex-1 overflow-hidden space-y-3">
+        {/* Horizontal Stage Pills Carousel */}
+        <div className="flex space-x-2 overflow-x-auto pb-1.5 scrollbar-none shrink-0 pr-2">
+          {DEFAULT_STAGES.map((stage) => {
+            const count = getLeadsForStage(stage.id).length;
+            const isSelected = selectedMobileStage === stage.id;
 
-      {/* Kanban Stages Columns */}
-      <div className="flex gap-4 min-w-[1400px] pb-6 items-start flex-1">
+            return (
+              <button
+                key={stage.id}
+                onClick={() => setSelectedMobileStage(stage.id)}
+                className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 border ${
+                  isSelected
+                    ? `${stage.bg} ${stage.color} ${stage.border} ring-1 ring-brand-500/40 shadow-sm`
+                    : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:text-slate-200'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${stage.bg} border ${stage.border}`} />
+                <span>{stage.label}</span>
+                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-black/30' : 'bg-slate-800 text-slate-400'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Mobile Cards Vertical Feed */}
+        <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 pb-16 custom-scrollbar">
+          {mobileStageLeads.length === 0 ? (
+            <div className="p-8 text-center bg-slate-900/60 rounded-2xl border border-slate-800/80 mt-4 space-y-2">
+              <Inbox className="w-8 h-8 text-slate-400 mx-auto" />
+              <p className="text-sm font-semibold text-slate-300">No leads in {activeStageConfig.label}</p>
+              <p className="text-xs text-slate-400">Tap below to create a new lead directly in this stage.</p>
+              <button
+                onClick={() => onOpenNewLead(selectedMobileStage)}
+                className="mt-2 inline-flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-brand-600 text-white font-bold text-xs shadow"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Lead to {activeStageConfig.label}</span>
+              </button>
+            </div>
+          ) : (
+            mobileStageLeads.map((lead) => {
+              const configInterests = lead['which_configuration_are_you_interested_in?'] || lead.configuration || lead.service;
+              const budget = lead['what_is_your_budget?'] || lead.budget;
+              const platform = (lead.platform || '').toLowerCase();
+
+              return (
+                <div
+                  key={lead.id}
+                  onClick={() => onSelectLead(lead)}
+                  className="bg-slate-900/90 active:bg-slate-800 border border-slate-800 hover:border-brand-500/50 rounded-2xl p-4 transition-all shadow-sm space-y-3 cursor-pointer"
+                >
+                  {/* Top Row: Name, Sheet & Platform */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-bold text-slate-100 truncate">
+                        {lead.full_name || 'Unnamed Lead'}
+                      </h4>
+                      <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5 truncate">
+                        <Phone className="w-3 h-3 text-slate-400" />
+                        <span>{lead.phone_number || 'No Contact'}</span>
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {platform && (
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase ${
+                            platform.includes('ig') || platform.includes('instagram')
+                              ? 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30'
+                              : 'bg-blue-500/15 text-blue-300 border-blue-500/30'
+                          }`}
+                        >
+                          {platform.includes('ig') || platform.includes('instagram') ? 'IG' : 'FB'}
+                        </span>
+                      )}
+                      {lead.sheet_source && (
+                        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-slate-800 text-brand-300 border border-slate-700">
+                          {lead.sheet_source}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Requirements & Campaign */}
+                  {(configInterests || budget || lead.campaign_name) && (
+                    <div className="space-y-1 pt-2 border-t border-slate-800/80 text-xs">
+                      {configInterests && (
+                        <div className="flex items-center gap-1.5 text-slate-300 truncate">
+                          <Tag className="w-3 h-3 text-brand-400 shrink-0" />
+                          <span className="truncate font-medium">{configInterests}</span>
+                        </div>
+                      )}
+                      {budget && (
+                        <div className="flex items-center gap-1.5 text-slate-300 truncate">
+                          <Wallet className="w-3 h-3 text-emerald-400 shrink-0" />
+                          <span className="truncate font-medium">{budget}</span>
+                        </div>
+                      )}
+                      {lead.campaign_name && (
+                        <div className="flex items-center gap-1.5 text-slate-400 text-[11px] truncate">
+                          <Layers className="w-3 h-3 shrink-0" />
+                          <span className="truncate">{lead.campaign_name}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Action Bar: Stage Changer & WhatsApp / Call */}
+                  <div className="flex items-center justify-between pt-2.5 border-t border-slate-800/80 gap-2">
+                    {/* Stage Dropdown */}
+                    <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                      <select
+                        value={lead.lead_status || 'New Lead'}
+                        onChange={(e) => onUpdateLeadStage(lead.id, e.target.value)}
+                        className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                      >
+                        {DEFAULT_STAGES.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            Move to: {s.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* WhatsApp & Call Buttons */}
+                    <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      {lead.phone_number && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenWhatsApp(lead)}
+                          className="px-2.5 py-1.5 rounded-xl bg-emerald-500/15 active:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 font-semibold text-xs flex items-center gap-1 transition-colors"
+                        >
+                          <MessageSquare className="w-3.5 h-3.5" />
+                          <span>Chat</span>
+                        </button>
+                      )}
+
+                      {lead.phone_number && (
+                        <a
+                          href={`tel:${lead.phone_number}`}
+                          className="p-1.5 rounded-xl bg-sky-500/15 active:bg-sky-500/30 text-sky-400 border border-sky-500/30 transition-colors"
+                          title="Call Lead"
+                        >
+                          <Phone className="w-3.5 h-3.5" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* DESKTOP 7-COLUMN KANBAN BOARD (Visible on >= lg screens) */}
+      {/* ========================================================================= */}
+      <div className="hidden lg:flex gap-4 min-w-[1400px] pb-6 items-start flex-1 overflow-x-auto custom-scrollbar">
         {DEFAULT_STAGES.map((stage) => {
           const stageLeads = getLeadsForStage(stage.id);
           const isDropTarget = activeDropZone === stage.id;
@@ -222,7 +374,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                             )}
                             {lead.sheet_source && (
                               <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-slate-700/60 text-slate-300 border border-slate-600/40">
-                                {lead.sheet_source === 'Meta Sheet 1' ? 'S1' : 'S2'}
+                                {lead.sheet_source}
                               </span>
                             )}
                           </div>
@@ -267,7 +419,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                           </div>
 
                           <div className="flex items-center gap-1">
-                            {/* WhatsApp Button */}
                             {lead.phone_number && (
                               <button
                                 type="button"
@@ -282,7 +433,6 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                               </button>
                             )}
 
-                            {/* Direct Call Button */}
                             {lead.phone_number && (
                               <a
                                 href={`tel:${lead.phone_number}`}

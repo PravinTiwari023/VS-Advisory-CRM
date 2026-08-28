@@ -1,17 +1,21 @@
 /**
  * =========================================================================
- * VS ADVISORY CRM - GOOGLE APPS SCRIPT BACKEND REST API (v3.2)
+ * VS ADVISORY CRM - GOOGLE APPS SCRIPT BACKEND REST API (v3.3)
  * =========================================================================
- * CORS-Optimized Multi-Sheet Engine (Supports both GET & POST)
+ * Multi-Sheet Real-Time Integration Engine
  * =========================================================================
  */
+
+function jsonResponse(data) {
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}
 
 function doGet(e) {
   return handleRequest(e ? e.parameter : {}, 'GET');
 }
 
 function doPost(e) {
-  let payload = {};
+  var payload = {};
   if (e && e.postData && e.postData.contents) {
     try {
       payload = JSON.parse(e.postData.contents);
@@ -26,10 +30,10 @@ function doPost(e) {
 
 function handleRequest(params, method) {
   try {
-    const action = params.action || 'ping';
+    var action = (params && params.action) ? params.action : 'ping';
 
     if (action === 'ping') {
-      const info = getSpreadsheetInfo();
+      var info = getSpreadsheetInfo();
       return jsonResponse({
         status: 'success',
         message: 'VS Advisory CRM Multi-Sheet Engine is online!',
@@ -85,8 +89,8 @@ function handleRequest(params, method) {
  */
 function extractSpreadsheetId(input) {
   if (!input) return "";
-  let str = String(input).trim();
-  const match = str.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  var str = String(input).trim();
+  var match = str.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
   if (match && match[1]) {
     return match[1];
   }
@@ -98,7 +102,7 @@ function extractSpreadsheetId(input) {
  * Smart Spreadsheet opener (supports ID, URL, or Active Sheet)
  */
 function getSpreadsheet(sheetIdOrUrl) {
-  const cleanId = extractSpreadsheetId(sheetIdOrUrl);
+  var cleanId = extractSpreadsheetId(sheetIdOrUrl);
   if (cleanId && cleanId !== "") {
     try {
       return SpreadsheetApp.openById(cleanId);
@@ -108,7 +112,7 @@ function getSpreadsheet(sheetIdOrUrl) {
     }
   }
   try {
-    const active = SpreadsheetApp.getActiveSpreadsheet();
+    var active = SpreadsheetApp.getActiveSpreadsheet();
     if (active) return active;
   } catch (e) {}
   return null;
@@ -119,13 +123,13 @@ function getSpreadsheet(sheetIdOrUrl) {
  */
 function getSpreadsheetInfo(sheetId) {
   try {
-    const ss = getSpreadsheet(sheetId);
+    var ss = getSpreadsheet(sheetId);
     if (!ss) return { title: 'Unknown', id: '', tabs: [] };
 
-    const sheets = ss.getSheets();
-    const tabs = sheets.map(s => {
-      const data = s.getDataRange().getValues();
-      const headers = data.length > 0 ? data[0].map(String) : [];
+    var sheets = ss.getSheets();
+    var tabs = sheets.map(function(s) {
+      var data = s.getDataRange().getValues();
+      var headers = data.length > 0 ? data[0].map(String) : [];
       return {
         name: s.getName(),
         rowCount: Math.max(0, data.length - 1),
@@ -147,11 +151,11 @@ function getSpreadsheetInfo(sheetId) {
  * Test a specific Sheet ID / URL
  */
 function testSpecificSheet(params) {
-  const rawInput = (params.sheetId || params.spreadsheetId || "").trim();
-  const sheetName = (params.sheetName || params.tabName || "").trim();
+  var rawInput = (params.sheetId || params.spreadsheetId || "").trim();
+  var sheetName = (params.sheetName || params.tabName || "").trim();
 
   try {
-    const ss = getSpreadsheet(rawInput);
+    var ss = getSpreadsheet(rawInput);
     if (!ss) {
       return jsonResponse({
         status: 'error',
@@ -159,7 +163,7 @@ function testSpecificSheet(params) {
       });
     }
 
-    const sheet = sheetName ? (ss.getSheetByName(sheetName) || ss.getSheets()[0]) : ss.getSheets()[0];
+    var sheet = sheetName ? (ss.getSheetByName(sheetName) || ss.getSheets()[0]) : ss.getSheets()[0];
     if (!sheet) {
       return jsonResponse({
         status: 'error',
@@ -167,8 +171,8 @@ function testSpecificSheet(params) {
       });
     }
 
-    const data = sheet.getDataRange().getValues();
-    const rowCount = Math.max(0, data.length - 1);
+    var data = sheet.getDataRange().getValues();
+    var rowCount = Math.max(0, data.length - 1);
 
     return jsonResponse({
       status: 'success',
@@ -190,12 +194,12 @@ function testSpecificSheet(params) {
  * Fetch all leads from MULTIPLE configured sheets dynamically
  */
 function getInitialData(params) {
-  let leads = [];
-  const systemTabs = ["users", "activities", "tasks", "settings"];
-  const diagnostics = [];
-  const sheetCounts = {};
+  var leads = [];
+  var systemTabs = ["users", "activities", "tasks", "settings"];
+  var diagnostics = [];
+  var sheetCounts = {};
 
-  let sheetConfigs = [];
+  var sheetConfigs = [];
   if (params.sheets) {
     try {
       sheetConfigs = typeof params.sheets === 'string' ? JSON.parse(params.sheets) : params.sheets;
@@ -206,7 +210,7 @@ function getInitialData(params) {
 
   // Fallback if no sheets parameter passed
   if (!sheetConfigs || sheetConfigs.length === 0) {
-    const activeSS = SpreadsheetApp.getActiveSpreadsheet();
+    var activeSS = SpreadsheetApp.getActiveSpreadsheet();
     if (activeSS) {
       sheetConfigs.push({
         id: "sheet-active",
@@ -218,42 +222,41 @@ function getInitialData(params) {
     }
   }
 
-  let masterSS = null;
+  var masterSS = null;
 
   // Process each configured sheet
-  sheetConfigs.forEach((sc, sIdx) => {
+  sheetConfigs.forEach(function(sc, sIdx) {
     if (sc.enabled === false) {
-      diagnostics.push(`Skipped "${sc.name}" (Disabled)`);
+      diagnostics.push("Skipped \"" + sc.name + "\" (Disabled)");
       return;
     }
 
-    const sourceName = sc.name || ("Sheet #" + (sIdx + 1));
-    const sourceColor = sc.color || "sky";
+    var sourceName = sc.name || ("Sheet #" + (sIdx + 1));
+    var sourceColor = sc.color || "sky";
 
     try {
-      const ss = getSpreadsheet(sc.spreadsheetId);
+      var ss = getSpreadsheet(sc.spreadsheetId);
       if (!masterSS && ss) {
         masterSS = ss;
       }
 
       if (ss) {
-        let sheetLeads = [];
+        var sheetLeads = [];
         if (sc.tabName && sc.tabName.trim() !== "") {
-          const s = ss.getSheetByName(sc.tabName.trim());
+          var s = ss.getSheetByName(sc.tabName.trim());
           if (s) {
             sheetLeads = readLeadsFromSheet(s, sourceName, ss.getId(), sourceColor);
           } else {
-            diagnostics.push(`Tab "${sc.tabName}" not found in "${sourceName}". Scanning all tabs.`);
+            diagnostics.push("Tab \"" + sc.tabName + "\" not found in \"" + sourceName + "\". Scanning all tabs.");
           }
         }
 
-        // Auto-scan non-system tabs if no specific tab or tab had 0 rows
         if (sheetLeads.length === 0) {
-          const allSheets = ss.getSheets();
-          allSheets.forEach(s => {
-            const tabLower = s.getName().toLowerCase().trim();
+          var allSheets = ss.getSheets();
+          allSheets.forEach(function(s) {
+            var tabLower = s.getName().toLowerCase().trim();
             if (!systemTabs.includes(tabLower)) {
-              const rows = readLeadsFromSheet(s, sourceName, ss.getId(), sourceColor);
+              var rows = readLeadsFromSheet(s, sourceName, ss.getId(), sourceColor);
               sheetLeads = sheetLeads.concat(rows);
             }
           });
@@ -261,20 +264,20 @@ function getInitialData(params) {
 
         leads = leads.concat(sheetLeads);
         sheetCounts[sc.id || ("sheet-" + sIdx)] = sheetLeads.length;
-        diagnostics.push(`✅ "${sourceName}" (${ss.getName()}): Loaded ${sheetLeads.length} leads`);
+        diagnostics.push("✅ \"" + sourceName + "\" (" + ss.getName() + "): Loaded " + sheetLeads.length + " leads");
       } else {
-        diagnostics.push(`❌ "${sourceName}": Could not open. Check if sheet is shared with your Google account.`);
+        diagnostics.push("❌ \"" + sourceName + "\": Could not open. Check if sheet is shared with your Google account.");
       }
     } catch (sheetErr) {
-      diagnostics.push(`❌ Error accessing "${sourceName}": ${sheetErr.message}`);
+      diagnostics.push("❌ Error accessing \"" + sourceName + "\": " + sheetErr.message);
     }
   });
 
   // Read Master Tabs
-  const targetMaster = masterSS || SpreadsheetApp.getActiveSpreadsheet();
-  const users = targetMaster ? readTable(targetMaster, "Users") : [];
-  const activities = targetMaster ? readTable(targetMaster, "Activities") : [];
-  const tasks = targetMaster ? readTable(targetMaster, "Tasks") : [];
+  var targetMaster = masterSS || SpreadsheetApp.getActiveSpreadsheet();
+  var users = targetMaster ? readTable(targetMaster, "Users") : [];
+  var activities = targetMaster ? readTable(targetMaster, "Activities") : [];
+  var tasks = targetMaster ? readTable(targetMaster, "Tasks") : [];
 
   return jsonResponse({
     status: 'success',
@@ -295,13 +298,13 @@ function getInitialData(params) {
  * Read Leads from a single sheet tab with smart Header-Row detection
  */
 function readLeadsFromSheet(sheet, sourceTag, spreadsheetId, sourceColor) {
-  const data = sheet.getDataRange().getValues();
+  var data = sheet.getDataRange().getValues();
   if (!data || data.length < 2) return [];
 
   // Find the true Header Row (scan first 5 rows)
-  let headerRowIdx = 0;
-  for (let r = 0; r < Math.min(5, data.length); r++) {
-    const rowStr = data[r].map(c => String(c || '').toLowerCase()).join(" ");
+  var headerRowIdx = 0;
+  for (var r = 0; r < Math.min(5, data.length); r++) {
+    var rowStr = data[r].map(function(c) { return String(c || '').toLowerCase(); }).join(" ");
     if (
       rowStr.includes("name") || 
       rowStr.includes("phone") || 
@@ -315,15 +318,15 @@ function readLeadsFromSheet(sheet, sourceTag, spreadsheetId, sourceColor) {
     }
   }
 
-  const rawHeaders = data[headerRowIdx].map(h => String(h || '').trim());
-  const headers = rawHeaders.map(h => h.toLowerCase().replace(/[\n\r]+/g, ' '));
-  const rows = data.slice(headerRowIdx + 1);
-  const leads = [];
+  var rawHeaders = data[headerRowIdx].map(function(h) { return String(h || '').trim(); });
+  var headers = rawHeaders.map(function(h) { return h.toLowerCase().replace(/[\n\r]+/g, ' '); });
+  var rows = data.slice(headerRowIdx + 1);
+  var leads = [];
 
-  rows.forEach((row, idx) => {
-    if (row.every(cell => cell === "" || cell === null || cell === undefined)) return;
+  rows.forEach(function(row, idx) {
+    if (row.every(function(cell) { return cell === "" || cell === null || cell === undefined; })) return;
 
-    const leadObj = {
+    var leadObj = {
       sheet_source: sourceTag,
       sheet_color: sourceColor || "sky",
       spreadsheet_id: spreadsheetId,
@@ -331,8 +334,8 @@ function readLeadsFromSheet(sheet, sourceTag, spreadsheetId, sourceColor) {
       row_index: headerRowIdx + idx + 2
     };
 
-    headers.forEach((h, colIdx) => {
-      let val = row[colIdx];
+    headers.forEach(function(h, colIdx) {
+      var val = row[colIdx];
       if (val instanceof Date) val = val.toISOString();
       leadObj[h] = val !== undefined && val !== null ? String(val).trim() : "";
     });
@@ -348,8 +351,8 @@ function readLeadsFromSheet(sheet, sourceTag, spreadsheetId, sourceColor) {
         "";
       
       if (!leadObj.full_name) {
-        for (let c = 0; c < row.length; c++) {
-          const cellStr = String(row[c] || '').trim();
+        for (var c = 0; c < row.length; c++) {
+          var cellStr = String(row[c] || '').trim();
           if (cellStr.length > 2 && !cellStr.includes("@") && isNaN(Number(cellStr))) {
             leadObj.full_name = cellStr;
             break;
@@ -418,21 +421,21 @@ function readLeadsFromSheet(sheet, sourceTag, spreadsheetId, sourceColor) {
 }
 
 function updateLead(payload) {
-  const spreadsheetId = payload.spreadsheet_id;
-  const ss = getSpreadsheet(spreadsheetId);
+  var spreadsheetId = payload.spreadsheet_id;
+  var ss = getSpreadsheet(spreadsheetId);
   if (!ss) return jsonResponse({ status: 'error', message: 'Target spreadsheet not found' });
 
-  const sheet = payload.sheet_name ? (ss.getSheetByName(payload.sheet_name) || ss.getSheets()[0]) : ss.getSheets()[0];
+  var sheet = payload.sheet_name ? (ss.getSheetByName(payload.sheet_name) || ss.getSheets()[0]) : ss.getSheets()[0];
   if (!sheet) return jsonResponse({ status: 'error', message: 'Target sheet tab not found' });
 
-  const data = sheet.getDataRange().getValues();
-  const headers = data[0].map(h => String(h || '').trim().toLowerCase());
-  let targetRowIndex = payload.row_index;
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0].map(function(h) { return String(h || '').trim().toLowerCase(); });
+  var targetRowIndex = payload.row_index;
 
   if (!targetRowIndex || targetRowIndex < 2 || targetRowIndex > data.length) {
-    const idIdx = headers.indexOf("id");
-    const phoneIdx = headers.indexOf("phone_number");
-    for (let r = 1; r < data.length; r++) {
+    var idIdx = headers.indexOf("id");
+    var phoneIdx = headers.indexOf("phone_number");
+    for (var r = 1; r < data.length; r++) {
       if (idIdx !== -1 && String(data[r][idIdx]).trim() === String(payload.id).trim()) {
         targetRowIndex = r + 1;
         break;
@@ -447,7 +450,7 @@ function updateLead(payload) {
   if (!targetRowIndex) return jsonResponse({ status: 'error', message: 'Lead row not found in sheet' });
 
   function setCell(colName, val) {
-    let colIdx = headers.indexOf(colName.toLowerCase());
+    var colIdx = headers.indexOf(colName.toLowerCase());
     if (colIdx === -1) {
       colIdx = headers.length;
       sheet.getRange(1, colIdx + 1).setValue(colName);
@@ -470,19 +473,19 @@ function updateLead(payload) {
 }
 
 function createLead(payload) {
-  const spreadsheetId = payload.spreadsheet_id;
-  const ss = getSpreadsheet(spreadsheetId);
+  var spreadsheetId = payload.spreadsheet_id;
+  var ss = getSpreadsheet(spreadsheetId);
   if (!ss) return jsonResponse({ status: 'error', message: 'No spreadsheet found to add lead' });
 
-  const sheet = ss.getSheets()[0];
-  const data = sheet.getDataRange().getValues();
-  const headers = data.length > 0 ? data[0].map(h => String(h || '').trim().toLowerCase()) : [];
+  var sheet = ss.getSheets()[0];
+  var data = sheet.getDataRange().getValues();
+  var headers = data.length > 0 ? data[0].map(function(h) { return String(h || '').trim().toLowerCase(); }) : [];
 
-  const newId = payload.id || "LEAD-MANUAL-" + Date.now();
-  const newRow = new Array(headers.length).fill("");
+  var newId = payload.id || "LEAD-MANUAL-" + Date.now();
+  var newRow = new Array(headers.length).fill("");
 
   function fill(colName, val) {
-    const idx = headers.indexOf(colName.toLowerCase());
+    var idx = headers.indexOf(colName.toLowerCase());
     if (idx !== -1 && val !== undefined) newRow[idx] = val;
   }
 
@@ -504,32 +507,32 @@ function createLead(payload) {
 }
 
 function logActivity(payload) {
-  const ss = getSpreadsheet(payload.spreadsheet_id);
+  var ss = getSpreadsheet(payload.spreadsheet_id);
   if (!ss) return jsonResponse({ status: 'error', message: 'Spreadsheet not found' });
-  let s = ss.getSheetByName("Activities") || ss.insertSheet("Activities");
+  var s = ss.getSheetByName("Activities") || ss.insertSheet("Activities");
   if (s.getLastRow() === 0) s.appendRow(["id", "lead_id", "type", "summary", "details", "date", "logged_by"]);
-  const id = "ACT-" + Date.now();
+  var id = "ACT-" + Date.now();
   s.appendRow([id, payload.lead_id || "", payload.type || "Note", payload.summary || "", payload.details || "", payload.date || new Date().toISOString(), payload.logged_by || "Advisor"]);
   return jsonResponse({ status: 'success', id: id });
 }
 
 function createTask(payload) {
-  const ss = getSpreadsheet(payload.spreadsheet_id);
+  var ss = getSpreadsheet(payload.spreadsheet_id);
   if (!ss) return jsonResponse({ status: 'error', message: 'Spreadsheet not found' });
-  let s = ss.getSheetByName("Tasks") || ss.insertSheet("Tasks");
+  var s = ss.getSheetByName("Tasks") || ss.insertSheet("Tasks");
   if (s.getLastRow() === 0) s.appendRow(["id", "lead_id", "lead_name", "title", "description", "due_date", "priority", "status", "assigned_to"]);
-  const id = "TASK-" + Date.now();
+  var id = "TASK-" + Date.now();
   s.appendRow([id, payload.lead_id || "", payload.lead_name || "", payload.title || "", payload.description || "", payload.due_date || "", payload.priority || "High", "Pending", payload.assigned_to || ""]);
   return jsonResponse({ status: 'success', id: id });
 }
 
 function updateTask(payload) {
-  const ss = getSpreadsheet(payload.spreadsheet_id);
+  var ss = getSpreadsheet(payload.spreadsheet_id);
   if (!ss) return jsonResponse({ status: 'error', message: 'Spreadsheet not found' });
-  const s = ss.getSheetByName("Tasks");
+  var s = ss.getSheetByName("Tasks");
   if (!s) return jsonResponse({ status: 'error', message: 'Tasks tab not found' });
-  const data = s.getDataRange().getValues();
-  for (let r = 1; r < data.length; r++) {
+  var data = s.getDataRange().getValues();
+  for (var r = 1; r < data.length; r++) {
     if (String(data[r][0]) === String(payload.id)) {
       s.getRange(r + 1, 8).setValue(payload.status);
       return jsonResponse({ status: 'success' });
@@ -539,37 +542,33 @@ function updateTask(payload) {
 }
 
 function readTable(ss, name) {
-  const s = ss.getSheetByName(name);
+  var s = ss.getSheetByName(name);
   if (!s) return [];
-  const data = s.getDataRange().getValues();
+  var data = s.getDataRange().getValues();
   if (data.length < 2) return [];
-  const headers = data[0].map(String);
-  return data.slice(1).map(r => {
-    const obj = {};
-    headers.forEach((h, idx) => obj[h] = r[idx]);
+  var headers = data[0].map(String);
+  return data.slice(1).map(function(r) {
+    var obj = {};
+    headers.forEach(function(h, idx) { obj[h] = r[idx]; });
     return obj;
   });
 }
 
 function setupMasterCRM(params) {
-  const ss = getSpreadsheet(params ? (params.sheet1Id || params.spreadsheetId) : null);
+  var ss = getSpreadsheet(params ? (params.sheet1Id || params.spreadsheetId) : null);
   if (!ss) return { status: 'error', message: 'Could not access spreadsheet' };
 
-  let u = ss.getSheetByName("Users") || ss.insertSheet("Users");
+  var u = ss.getSheetByName("Users") || ss.insertSheet("Users");
   if (u.getLastRow() === 0) {
     u.appendRow(["id", "name", "email", "pin", "role"]);
     u.appendRow(["USR-1", "Admin Advisor", "admin@vsadvisory.com", "1234", "Admin"]);
   }
 
-  let a = ss.getSheetByName("Activities") || ss.insertSheet("Activities");
+  var a = ss.getSheetByName("Activities") || ss.insertSheet("Activities");
   if (a.getLastRow() === 0) a.appendRow(["id", "lead_id", "type", "summary", "details", "date", "logged_by"]);
 
-  let t = ss.getSheetByName("Tasks") || ss.insertSheet("Tasks");
+  var t = ss.getSheetByName("Tasks") || ss.insertSheet("Tasks");
   if (t.getLastRow() === 0) t.appendRow(["id", "lead_id", "lead_name", "title", "description", "due_date", "priority", "status", "assigned_to"]);
 
   return { status: 'success', message: 'Master CRM sheets initialized!' };
-}
-
-function jsonResponse(data) {
-  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
 }
