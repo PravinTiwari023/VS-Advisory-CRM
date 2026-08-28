@@ -1,14 +1,31 @@
 /**
  * =========================================================================
- * VS ADVISORY CRM - GOOGLE APPS SCRIPT BACKEND REST API (v3.0 - MULTI-SHEET)
+ * VS ADVISORY CRM - GOOGLE APPS SCRIPT BACKEND REST API (v3.2)
  * =========================================================================
- * Supports UNLIMITED connected Google Sheets dynamically from CRM Settings!
+ * CORS-Optimized Multi-Sheet Engine (Supports both GET & POST)
  * =========================================================================
  */
 
 function doGet(e) {
+  return handleRequest(e ? e.parameter : {}, 'GET');
+}
+
+function doPost(e) {
+  let payload = {};
+  if (e && e.postData && e.postData.contents) {
+    try {
+      payload = JSON.parse(e.postData.contents);
+    } catch (err) {
+      payload = e.parameter || {};
+    }
+  } else if (e && e.parameter) {
+    payload = e.parameter;
+  }
+  return handleRequest(payload, 'POST');
+}
+
+function handleRequest(params, method) {
   try {
-    const params = (e && e.parameter) ? e.parameter : {};
     const action = params.action || 'ping';
 
     if (action === 'ping') {
@@ -29,6 +46,26 @@ function doGet(e) {
       return testSpecificSheet(params);
     }
 
+    if (action === 'updateLead') {
+      return updateLead(params);
+    }
+
+    if (action === 'createLead') {
+      return createLead(params);
+    }
+
+    if (action === 'logActivity') {
+      return logActivity(params);
+    }
+
+    if (action === 'createTask') {
+      return createTask(params);
+    }
+
+    if (action === 'updateTask') {
+      return updateTask(params);
+    }
+
     if (action === 'setupMasterCRM') {
       return jsonResponse(setupMasterCRM(params));
     }
@@ -40,42 +77,6 @@ function doGet(e) {
       message: 'Server Error: ' + err.toString(), 
       stack: err.stack 
     });
-  }
-}
-
-function doPost(e) {
-  try {
-    let payload = {};
-    if (e && e.postData && e.postData.contents) {
-      try {
-        payload = JSON.parse(e.postData.contents);
-      } catch (err) {
-        payload = e.parameter || {};
-      }
-    } else if (e && e.parameter) {
-      payload = e.parameter;
-    }
-
-    const action = payload.action;
-
-    switch (action) {
-      case 'updateLead':
-        return updateLead(payload);
-      case 'createLead':
-        return createLead(payload);
-      case 'logActivity':
-        return logActivity(payload);
-      case 'createTask':
-        return createTask(payload);
-      case 'updateTask':
-        return updateTask(payload);
-      case 'setupMasterCRM':
-        return jsonResponse(setupMasterCRM(payload));
-      default:
-        return jsonResponse({ status: 'error', message: 'Unknown action: ' + action });
-    }
-  } catch (err) {
-    return jsonResponse({ status: 'error', message: err.toString() });
   }
 }
 
@@ -103,6 +104,7 @@ function getSpreadsheet(sheetIdOrUrl) {
       return SpreadsheetApp.openById(cleanId);
     } catch (e) {
       Logger.log("openById failed for " + cleanId + ": " + e.message);
+      return null;
     }
   }
   try {
@@ -116,40 +118,44 @@ function getSpreadsheet(sheetIdOrUrl) {
  * Inspect tabs and headers in a spreadsheet
  */
 function getSpreadsheetInfo(sheetId) {
-  const ss = getSpreadsheet(sheetId);
-  if (!ss) return { title: 'Unknown', id: '', tabs: [] };
+  try {
+    const ss = getSpreadsheet(sheetId);
+    if (!ss) return { title: 'Unknown', id: '', tabs: [] };
 
-  const sheets = ss.getSheets();
-  const tabs = sheets.map(s => {
-    const data = s.getDataRange().getValues();
-    const headers = data.length > 0 ? data[0].map(String) : [];
+    const sheets = ss.getSheets();
+    const tabs = sheets.map(s => {
+      const data = s.getDataRange().getValues();
+      const headers = data.length > 0 ? data[0].map(String) : [];
+      return {
+        name: s.getName(),
+        rowCount: Math.max(0, data.length - 1),
+        headers: headers
+      };
+    });
+
     return {
-      name: s.getName(),
-      rowCount: Math.max(0, data.length - 1),
-      headers: headers
+      title: ss.getName(),
+      id: ss.getId(),
+      tabs: tabs
     };
-  });
-
-  return {
-    title: ss.getName(),
-    id: ss.getId(),
-    tabs: tabs
-  };
+  } catch (err) {
+    return { title: 'Error', id: sheetId || '', tabs: [], error: err.message };
+  }
 }
 
 /**
  * Test a specific Sheet ID / URL
  */
 function testSpecificSheet(params) {
-  const rawInput = (params.sheetId || "").trim();
-  const sheetName = (params.sheetName || "").trim();
+  const rawInput = (params.sheetId || params.spreadsheetId || "").trim();
+  const sheetName = (params.sheetName || params.tabName || "").trim();
 
   try {
     const ss = getSpreadsheet(rawInput);
     if (!ss) {
       return jsonResponse({
         status: 'error',
-        message: 'Could not access spreadsheet. Please make sure the ID/URL is correct and you have view permissions.'
+        message: 'Could not access spreadsheet. Make sure ID/URL is valid and shared with your Google account.'
       });
     }
 
@@ -157,7 +163,7 @@ function testSpecificSheet(params) {
     if (!sheet) {
       return jsonResponse({
         status: 'error',
-        message: 'Spreadsheet opened, but no valid sheet tab was found.'
+        message: 'Spreadsheet opened, but no sheet tabs found.'
       });
     }
 
@@ -189,40 +195,17 @@ function getInitialData(params) {
   const diagnostics = [];
   const sheetCounts = {};
 
-  // Parse multi-sheets configuration array if passed
   let sheetConfigs = [];
   if (params.sheets) {
     try {
       sheetConfigs = typeof params.sheets === 'string' ? JSON.parse(params.sheets) : params.sheets;
     } catch (e) {
-      Logger.log("Failed to parse sheets parameter: " + e.message);
+      diagnostics.push("Config Warning: Could not parse sheets list: " + e.message);
     }
   }
 
-  // Fallback if legacy sheet1Id or sheet2Id passed
+  // Fallback if no sheets parameter passed
   if (!sheetConfigs || sheetConfigs.length === 0) {
-    if (params.sheet1Id) {
-      sheetConfigs.push({
-        id: "sheet-1",
-        name: params.sheet1Name || "Meta Sheet 1",
-        spreadsheetId: params.sheet1Id,
-        tabName: params.sheet1Name,
-        enabled: true
-      });
-    }
-    if (params.sheet2Id) {
-      sheetConfigs.push({
-        id: "sheet-2",
-        name: params.sheet2Name || "Meta Sheet 2",
-        spreadsheetId: params.sheet2Id,
-        tabName: params.sheet2Name,
-        enabled: true
-      });
-    }
-  }
-
-  // If no sheets explicitly passed, read from the active spreadsheet
-  if (sheetConfigs.length === 0) {
     const activeSS = SpreadsheetApp.getActiveSpreadsheet();
     if (activeSS) {
       sheetConfigs.push({
@@ -237,44 +220,53 @@ function getInitialData(params) {
 
   let masterSS = null;
 
-  // Process all configured sheets
+  // Process each configured sheet
   sheetConfigs.forEach((sc, sIdx) => {
-    if (sc.enabled === false) return;
+    if (sc.enabled === false) {
+      diagnostics.push(`Skipped "${sc.name}" (Disabled)`);
+      return;
+    }
 
-    const ss = getSpreadsheet(sc.spreadsheetId);
     const sourceName = sc.name || ("Sheet #" + (sIdx + 1));
     const sourceColor = sc.color || "sky";
 
-    if (!masterSS && ss) {
-      masterSS = ss;
-    }
-
-    if (ss) {
-      let sheetLeads = [];
-      if (sc.tabName && sc.tabName.trim() !== "") {
-        const s = ss.getSheetByName(sc.tabName.trim());
-        if (s) {
-          sheetLeads = readLeadsFromSheet(s, sourceName, ss.getId(), sourceColor);
-        }
+    try {
+      const ss = getSpreadsheet(sc.spreadsheetId);
+      if (!masterSS && ss) {
+        masterSS = ss;
       }
 
-      // If no specific tab or tab had 0 rows, auto-scan all non-system tabs
-      if (sheetLeads.length === 0) {
-        const allSheets = ss.getSheets();
-        allSheets.forEach(s => {
-          const tabLower = s.getName().toLowerCase().trim();
-          if (!systemTabs.includes(tabLower)) {
-            const rows = readLeadsFromSheet(s, sourceName, ss.getId(), sourceColor);
-            sheetLeads = sheetLeads.concat(rows);
+      if (ss) {
+        let sheetLeads = [];
+        if (sc.tabName && sc.tabName.trim() !== "") {
+          const s = ss.getSheetByName(sc.tabName.trim());
+          if (s) {
+            sheetLeads = readLeadsFromSheet(s, sourceName, ss.getId(), sourceColor);
+          } else {
+            diagnostics.push(`Tab "${sc.tabName}" not found in "${sourceName}". Scanning all tabs.`);
           }
-        });
-      }
+        }
 
-      leads = leads.concat(sheetLeads);
-      sheetCounts[sc.id || ("sheet-" + sIdx)] = sheetLeads.length;
-      diagnostics.push(`Loaded ${sheetLeads.length} leads from "${sourceName}" (${ss.getName()})`);
-    } else {
-      diagnostics.push(`Could not open spreadsheet for "${sourceName}"`);
+        // Auto-scan non-system tabs if no specific tab or tab had 0 rows
+        if (sheetLeads.length === 0) {
+          const allSheets = ss.getSheets();
+          allSheets.forEach(s => {
+            const tabLower = s.getName().toLowerCase().trim();
+            if (!systemTabs.includes(tabLower)) {
+              const rows = readLeadsFromSheet(s, sourceName, ss.getId(), sourceColor);
+              sheetLeads = sheetLeads.concat(rows);
+            }
+          });
+        }
+
+        leads = leads.concat(sheetLeads);
+        sheetCounts[sc.id || ("sheet-" + sIdx)] = sheetLeads.length;
+        diagnostics.push(`✅ "${sourceName}" (${ss.getName()}): Loaded ${sheetLeads.length} leads`);
+      } else {
+        diagnostics.push(`❌ "${sourceName}": Could not open. Check if sheet is shared with your Google account.`);
+      }
+    } catch (sheetErr) {
+      diagnostics.push(`❌ Error accessing "${sourceName}": ${sheetErr.message}`);
     }
   });
 
@@ -300,15 +292,32 @@ function getInitialData(params) {
 }
 
 /**
- * Read Leads from a single sheet tab with deep header normalization
+ * Read Leads from a single sheet tab with smart Header-Row detection
  */
 function readLeadsFromSheet(sheet, sourceTag, spreadsheetId, sourceColor) {
   const data = sheet.getDataRange().getValues();
   if (!data || data.length < 2) return [];
 
-  const rawHeaders = data[0].map(h => String(h || '').trim());
+  // Find the true Header Row (scan first 5 rows)
+  let headerRowIdx = 0;
+  for (let r = 0; r < Math.min(5, data.length); r++) {
+    const rowStr = data[r].map(c => String(c || '').toLowerCase()).join(" ");
+    if (
+      rowStr.includes("name") || 
+      rowStr.includes("phone") || 
+      rowStr.includes("email") || 
+      rowStr.includes("lead_status") ||
+      rowStr.includes("created_time") ||
+      rowStr.includes("campaign")
+    ) {
+      headerRowIdx = r;
+      break;
+    }
+  }
+
+  const rawHeaders = data[headerRowIdx].map(h => String(h || '').trim());
   const headers = rawHeaders.map(h => h.toLowerCase().replace(/[\n\r]+/g, ' '));
-  const rows = data.slice(1);
+  const rows = data.slice(headerRowIdx + 1);
   const leads = [];
 
   rows.forEach((row, idx) => {
@@ -319,7 +328,7 @@ function readLeadsFromSheet(sheet, sourceTag, spreadsheetId, sourceColor) {
       sheet_color: sourceColor || "sky",
       spreadsheet_id: spreadsheetId,
       sheet_name: sheet.getName(),
-      row_index: idx + 2
+      row_index: headerRowIdx + idx + 2
     };
 
     headers.forEach((h, colIdx) => {
@@ -329,23 +338,75 @@ function readLeadsFromSheet(sheet, sourceTag, spreadsheetId, sourceColor) {
     });
 
     if (!leadObj.full_name) {
-      leadObj.full_name = leadObj['full_name'] || leadObj['full name'] || leadObj['name'] || leadObj['first_name'] || leadObj['customer name'] || "Lead #" + (idx + 1);
+      leadObj.full_name = 
+        leadObj['full_name'] || 
+        leadObj['full name'] || 
+        leadObj['name'] || 
+        leadObj['first_name'] || 
+        leadObj['customer name'] || 
+        leadObj['lead name'] || 
+        "";
+      
+      if (!leadObj.full_name) {
+        for (let c = 0; c < row.length; c++) {
+          const cellStr = String(row[c] || '').trim();
+          if (cellStr.length > 2 && !cellStr.includes("@") && isNaN(Number(cellStr))) {
+            leadObj.full_name = cellStr;
+            break;
+          }
+        }
+      }
+
+      if (!leadObj.full_name) {
+        leadObj.full_name = "Lead #" + (idx + 1);
+      }
     }
+
     if (!leadObj.phone_number) {
-      leadObj.phone_number = leadObj['phone_number'] || leadObj['phone number'] || leadObj['phone'] || leadObj['mobile'] || "";
+      leadObj.phone_number = 
+        leadObj['phone_number'] || 
+        leadObj['phone number'] || 
+        leadObj['phone'] || 
+        leadObj['mobile'] || 
+        leadObj['contact'] || 
+        leadObj['whatsapp'] || 
+        "";
     }
+
     if (!leadObj.email) {
-      leadObj.email = leadObj['email'] || leadObj['email address'] || "";
+      leadObj.email = 
+        leadObj['email'] || 
+        leadObj['email address'] || 
+        leadObj['email_address'] || 
+        "";
     }
+
     if (!leadObj.lead_status || leadObj.lead_status.trim() === "") {
-      leadObj.lead_status = leadObj['stage'] || leadObj['status'] || "New Lead";
+      leadObj.lead_status = 
+        leadObj['lead_status'] || 
+        leadObj['stage'] || 
+        leadObj['status'] || 
+        leadObj['crm_stage'] || 
+        "New Lead";
     }
+
     if (!leadObj['which_configuration_are_you_interested_in?']) {
-      leadObj['which_configuration_are_you_interested_in?'] = leadObj['configuration'] || leadObj['service'] || "";
+      leadObj['which_configuration_are_you_interested_in?'] = 
+        leadObj['which_configuration_are_you_interested_in?'] ||
+        leadObj['configuration'] ||
+        leadObj['service'] ||
+        leadObj['interested in'] ||
+        "";
     }
+
     if (!leadObj['what_is_your_budget?']) {
-      leadObj['what_is_your_budget?'] = leadObj['budget'] || "";
+      leadObj['what_is_your_budget?'] = 
+        leadObj['what_is_your_budget?'] ||
+        leadObj['budget'] ||
+        leadObj['price range'] ||
+        "";
     }
+
     if (!leadObj.id || leadObj.id.trim() === "") {
       leadObj.id = "LEAD-" + (sourceTag.replace(/[^a-zA-Z0-9]/g, '')) + "-" + (idx + 2);
     }

@@ -18,30 +18,17 @@ export const getSavedConfig = (): SheetConfig => {
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
-      // Migrate legacy config if needed
       if (!parsed.sheets || !Array.isArray(parsed.sheets)) {
-        const migratedSheets: ConnectedSheet[] = [];
-        if (parsed.sheet1Id) {
-          migratedSheets.push({
+        parsed.sheets = [
+          {
             id: 'sheet-1',
-            name: parsed.sheet1Name || 'Meta Campaign 1',
-            spreadsheetId: extractCleanId(parsed.sheet1Id),
-            tabName: parsed.sheet1Name || '',
+            name: 'Meta Campaign 1',
+            spreadsheetId: '',
+            tabName: '',
             enabled: true,
             color: 'emerald'
-          });
-        }
-        if (parsed.sheet2Id) {
-          migratedSheets.push({
-            id: 'sheet-2',
-            name: parsed.sheet2Name || 'Meta Campaign 2',
-            spreadsheetId: extractCleanId(parsed.sheet2Id),
-            tabName: parsed.sheet2Name || '',
-            enabled: true,
-            color: 'sky'
-          });
-        }
-        parsed.sheets = migratedSheets;
+          }
+        ];
       }
       return parsed;
     } catch {
@@ -67,7 +54,7 @@ export const getSavedConfig = (): SheetConfig => {
 export const saveConfig = (config: SheetConfig) => {
   const sanitized = {
     ...config,
-    sheets: config.sheets.map((s) => ({
+    sheets: (config.sheets || []).map((s) => ({
       ...s,
       spreadsheetId: extractCleanId(s.spreadsheetId || ''),
     })),
@@ -104,53 +91,9 @@ function cleanScriptUrl(rawUrl: string): string {
   return url;
 }
 
-export async function apiGet(action: string, params: Record<string, string> = {}) {
-  const config = getSavedConfig();
-  const scriptUrl = cleanScriptUrl(config.scriptUrl || '');
-
-  if (!scriptUrl || !scriptUrl.startsWith('http')) {
-    throw new Error('Google Apps Script Web App URL is not configured.');
-  }
-
-  const url = new URL(scriptUrl);
-  url.searchParams.append('action', action);
-  
-  // Pass sheets configuration
-  if (config.sheets && config.sheets.length > 0) {
-    url.searchParams.append('sheets', JSON.stringify(config.sheets));
-  }
-
-  Object.entries(params).forEach(([key, val]) => {
-    url.searchParams.append(key, val);
-  });
-
-  try {
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      mode: 'cors',
-      redirect: 'follow',
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error(
-          'Google Apps Script returned 404. In Apps Script, click Deploy > New deployment > Web App with "Who has access: Anyone".'
-        );
-      }
-      throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    if (data.status === 'error') {
-      throw new Error(data.message || 'Error occurred in Google Apps Script');
-    }
-
-    return data;
-  } catch (err: any) {
-    throw new Error(err.message || 'Network request failed');
-  }
-}
-
+/**
+ * Universal CORS POST request for Google Apps Script
+ */
 export async function apiPost(action: string, payload: Record<string, any> = {}) {
   const config = getSavedConfig();
   const scriptUrl = cleanScriptUrl(config.scriptUrl || '');
@@ -177,6 +120,11 @@ export async function apiPost(action: string, payload: Record<string, any> = {})
     });
 
     if (!response.ok) {
+      if (response.status === 404) {
+        throw new Error(
+          'Google Apps Script returned 404. In Apps Script, click Deploy > Manage deployments > Edit > New version with "Who has access: Anyone".'
+        );
+      }
       throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
     }
 
@@ -187,6 +135,11 @@ export async function apiPost(action: string, payload: Record<string, any> = {})
 
     return data;
   } catch (err: any) {
+    if (err.message && err.message.includes('Failed to fetch')) {
+      throw new Error(
+        'CORS / Permission Error: Please ensure your Google Apps Script is deployed as "Execute as: Me" and "Who has access: Anyone" (New Version).'
+      );
+    }
     throw new Error(err.message || 'Network request failed');
   }
 }
@@ -198,21 +151,31 @@ export async function testConnection(rawScriptUrl: string) {
     throw new Error('Invalid URL. Please enter the full Web App URL.');
   }
 
-  const url = new URL(scriptUrl);
-  url.searchParams.append('action', 'ping');
+  try {
+    const response = await fetch(scriptUrl, {
+      method: 'POST',
+      mode: 'cors',
+      redirect: 'follow',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      },
+      body: JSON.stringify({ action: 'ping' }),
+    });
 
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    mode: 'cors',
-    redirect: 'follow',
-  });
+    if (!response.ok) {
+      throw new Error(`Connection failed (${response.status}: ${response.statusText})`);
+    }
 
-  if (!response.ok) {
-    throw new Error(`Connection failed (${response.status}: ${response.statusText})`);
+    const data = await response.json();
+    return data;
+  } catch (err: any) {
+    if (err.message?.includes('Failed to fetch')) {
+      throw new Error(
+        'CORS error: In Google Apps Script, click Deploy > Manage deployments > Edit > New version, and ensure "Who has access" is set to "Anyone".'
+      );
+    }
+    throw err;
   }
-
-  const data = await response.json();
-  return data;
 }
 
 export async function testSingleSheet(rawScriptUrl: string, sheetId: string, sheetName: string = '') {
@@ -222,15 +185,18 @@ export async function testSingleSheet(rawScriptUrl: string, sheetId: string, she
   }
 
   const cleanId = extractCleanId(sheetId);
-  const url = new URL(scriptUrl);
-  url.searchParams.append('action', 'testSheet');
-  if (cleanId) url.searchParams.append('sheetId', cleanId);
-  if (sheetName) url.searchParams.append('sheetName', sheetName.trim());
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
+  const response = await fetch(scriptUrl, {
+    method: 'POST',
     mode: 'cors',
     redirect: 'follow',
+    headers: {
+      'Content-Type': 'text/plain;charset=utf-8',
+    },
+    body: JSON.stringify({
+      action: 'testSheet',
+      sheetId: cleanId,
+      sheetName: sheetName.trim()
+    }),
   });
 
   if (!response.ok) {
@@ -249,7 +215,7 @@ export async function fetchInitialData(): Promise<{
   diagnostics?: string[];
   spreadsheetInfo?: SpreadsheetInfo;
 }> {
-  const res = await apiGet('getInitialData');
+  const res = await apiPost('getInitialData');
   return res.data;
 }
 
