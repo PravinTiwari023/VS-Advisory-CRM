@@ -44,6 +44,8 @@ import {
   Loader2
 } from 'lucide-react';
 
+const LOCAL_STORAGE_LEADS_CACHE = 'vs_crm_leads_cache';
+
 export function App() {
   const [config, setConfig] = useState<SheetConfig>(getSavedConfig());
   const [activeTab, setActiveTab] = useState<ActiveTab>('pipeline');
@@ -53,8 +55,16 @@ export function App() {
   const [authUser, setAuthUser] = useState<FirebaseUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Live Data State (No sample data, strictly live from sheets)
-  const [leads, setLeads] = useState<Lead[]>([]);
+  // Initialize leads from fast local cache if available
+  const [leads, setLeads] = useState<Lead[]>(() => {
+    try {
+      const cached = localStorage.getItem(LOCAL_STORAGE_LEADS_CACHE);
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const [users, setUsers] = useState<User[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -101,20 +111,26 @@ export function App() {
     setIsLoading(true);
     try {
       const data = await fetchInitialData();
-      setLeads(data.leads || []);
-      setUsers(data.users || []);
-      setActivities(data.activities || []);
-      setTasks(data.tasks || []);
-      if (data.sheetCounts) setSheetCounts(data.sheetCounts);
-      if (data.spreadsheetInfo) setSpreadsheetInfo(data.spreadsheetInfo);
-      if (data.diagnostics) setDiagnostics(data.diagnostics);
+      const loadedLeads = Array.isArray(data?.leads) ? data.leads : [];
+      setLeads(loadedLeads);
+      
+      // Cache leads locally for instant next load
+      try {
+        localStorage.setItem(LOCAL_STORAGE_LEADS_CACHE, JSON.stringify(loadedLeads));
+      } catch {}
+
+      setUsers(Array.isArray(data?.users) ? data.users : []);
+      setActivities(Array.isArray(data?.activities) ? data.activities : []);
+      setTasks(Array.isArray(data?.tasks) ? data.tasks : []);
+      if (data?.sheetCounts) setSheetCounts(data.sheetCounts);
+      if (data?.spreadsheetInfo) setSpreadsheetInfo(data.spreadsheetInfo);
+      if (data?.diagnostics) setDiagnostics(data.diagnostics);
       
       setIsConnected(true);
-      showToast(`Loaded ${data.leads?.length || 0} leads across your connected sheets!`, 'success');
+      showToast(`Loaded ${loadedLeads.length} leads across your connected sheets!`, 'success');
     } catch (err: any) {
       console.error('Failed to load data:', err);
-      setIsConnected(false);
-      showToast(err.message || 'Failed to connect to Google Sheets', 'error');
+      showToast(err.message || 'Failed to sync with Google Sheets', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -147,7 +163,6 @@ export function App() {
 
     showToast(`Lead stage updated to ${newStage}`, 'success');
 
-    // Background sync to Google Sheet
     try {
       const leadToUpdate = leads.find((l) => l.id === leadId);
       if (leadToUpdate) {
@@ -411,9 +426,7 @@ export function App() {
         </main>
       </div>
 
-      {/* ========================================================================= */}
-      {/* MOBILE FLOATING ACTION BUTTON (FAB) FOR '+ Add Lead' */}
-      {/* ========================================================================= */}
+      {/* Mobile Floating Action Button (FAB) */}
       <button
         onClick={() => {
           setNewLeadStage('New Lead');
@@ -425,9 +438,7 @@ export function App() {
         <Plus className="w-6 h-6 stroke-[2.5]" />
       </button>
 
-      {/* ========================================================================= */}
-      {/* MOBILE FIXED BOTTOM NAVIGATION BAR */}
-      {/* ========================================================================= */}
+      {/* Mobile Bottom Navigation Bar */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 flex items-center justify-around px-2 z-30 shadow-2xl">
         {[
           { id: 'pipeline' as ActiveTab, label: 'Pipeline', icon: KanbanSquare, badge: leads.length },

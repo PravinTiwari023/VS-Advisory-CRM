@@ -19,7 +19,6 @@ export const getSavedConfig = (): SheetConfig => {
   if (saved) {
     try {
       const parsed = JSON.parse(saved);
-      // Auto-set the correct URL
       parsed.scriptUrl = CURRENT_LATEST_SCRIPT_URL;
       
       if (!parsed.sheets || !Array.isArray(parsed.sheets) || parsed.sheets.length === 0) {
@@ -48,7 +47,6 @@ export const getSavedConfig = (): SheetConfig => {
     }
   }
 
-  // Pre-configured default settings with user's verified Web App URL & sheets
   return {
     scriptUrl: CURRENT_LATEST_SCRIPT_URL,
     sheets: [
@@ -140,7 +138,7 @@ export async function apiPost(action: string, payload: Record<string, any> = {})
     if (!response.ok) {
       if (response.status === 404) {
         throw new Error(
-          'Google Apps Script returned 404. In Apps Script, click Deploy > Manage deployments > Edit > New version with "Who has access: Anyone".'
+          'Google Apps Script returned 404. Please check Web App URL.'
         );
       }
       throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
@@ -153,11 +151,6 @@ export async function apiPost(action: string, payload: Record<string, any> = {})
 
     return data;
   } catch (err: any) {
-    if (err.message && err.message.includes('Failed to fetch')) {
-      throw new Error(
-        'CORS / Permission Error: Please check that Web App access is set to "Anyone".'
-      );
-    }
     throw new Error(err.message || 'Network request failed');
   }
 }
@@ -183,11 +176,6 @@ export async function testConnection(rawScriptUrl: string) {
     const data = await response.json();
     return data;
   } catch (err: any) {
-    if (err.message?.includes('Failed to fetch')) {
-      throw new Error(
-        'CORS error: In Google Apps Script, click Deploy > Manage deployments > Edit > New version, and ensure "Who has access" is set to "Anyone".'
-      );
-    }
     throw err;
   }
 }
@@ -217,6 +205,9 @@ export async function testSingleSheet(rawScriptUrl: string, sheetId: string, she
   return await response.json();
 }
 
+/**
+ * Universal safe data fetcher supporting both res.data and top-level res formats
+ */
 export async function fetchInitialData(): Promise<{
   leads: Lead[];
   users: User[];
@@ -226,8 +217,23 @@ export async function fetchInitialData(): Promise<{
   diagnostics?: string[];
   spreadsheetInfo?: SpreadsheetInfo;
 }> {
-  const res = await apiPost('getInitialData');
-  return res.data;
+  try {
+    const res = await apiPost('getInitialData');
+    const payload = res && res.data ? res.data : (res || {});
+
+    return {
+      leads: Array.isArray(payload.leads) ? payload.leads : (Array.isArray(res.leads) ? res.leads : []),
+      users: Array.isArray(payload.users) ? payload.users : (Array.isArray(res.users) ? res.users : []),
+      activities: Array.isArray(payload.activities) ? payload.activities : (Array.isArray(res.activities) ? res.activities : []),
+      tasks: Array.isArray(payload.tasks) ? payload.tasks : (Array.isArray(res.tasks) ? res.tasks : []),
+      sheetCounts: payload.sheetCounts || res.sheetCounts || {},
+      diagnostics: payload.diagnostics || res.diagnostics || [],
+      spreadsheetInfo: payload.spreadsheetInfo || res.spreadsheetInfo || null,
+    };
+  } catch (err) {
+    console.error("fetchInitialData error:", err);
+    throw err;
+  }
 }
 
 export async function updateLeadInSheet(lead: Partial<Lead>): Promise<void> {
