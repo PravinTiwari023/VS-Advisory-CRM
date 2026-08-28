@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
 import { 
+  Plus, 
   Phone, 
   MessageSquare, 
-  Tag, 
-  Wallet, 
-  Layers, 
-  Clock, 
-  Plus,
-  Inbox,
+  Calendar, 
+  Sparkles, 
+  Layers,
   ChevronRight
 } from 'lucide-react';
-import { Lead, DEFAULT_STAGES, PipelineStage } from '../types';
+import { Lead, DEFAULT_STAGES, getLeadConfiguration, getLeadBudget } from '../types';
 
 interface KanbanBoardProps {
   leads: Lead[];
@@ -27,126 +25,82 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   onOpenWhatsApp,
   onOpenNewLead
 }) => {
-  const [selectedMobileStage, setSelectedMobileStage] = useState<PipelineStage>('New Lead');
-  const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
-  const [activeDropZone, setActiveDropZone] = useState<string | null>(null);
+  const [activeMobileStage, setActiveMobileStage] = useState<string>(DEFAULT_STAGES[0].id);
 
-  // Helper to map ANY lead status string to one of our 7 pipeline stages safely
-  const resolveStageForLead = (lead: Lead): PipelineStage => {
-    const rawStatus = (lead.lead_status || '').trim().toLowerCase();
-    
-    if (!rawStatus || rawStatus === 'new lead' || rawStatus === 'new' || rawStatus === 'unassigned' || rawStatus === 'open' || rawStatus === 'active' || rawStatus === 'fresh') {
-      return 'New Lead';
-    }
-    if (rawStatus.includes('contact') || rawStatus.includes('progress') || rawStatus.includes('call') || rawStatus.includes('reach') || rawStatus.includes('ringing')) {
-      return 'Contacted / In Progress';
-    }
-    if (rawStatus.includes('interest') || rawStatus.includes('warm') || rawStatus.includes('qualif') || rawStatus.includes('hot')) {
-      return 'Interested';
-    }
-    if (rawStatus.includes('visit') || rawStatus.includes('meet') || rawStatus.includes('schedul') || rawStatus.includes('demo') || rawStatus.includes('appointment')) {
-      return 'Site Visit / Meeting Scheduled';
-    }
-    if (rawStatus.includes('propos') || rawStatus.includes('negotiat') || rawStatus.includes('pitch') || rawStatus.includes('quote') || rawStatus.includes('review')) {
-      return 'Proposal / Negotiation';
-    }
-    if (rawStatus.includes('won') || rawStatus.includes('convert') || rawStatus.includes('close') || rawStatus.includes('success') || rawStatus.includes('deal done')) {
-      return 'Won / Converted';
-    }
-    if (rawStatus.includes('lost') || rawStatus.includes('disqualif') || rawStatus.includes('junk') || rawStatus.includes('invalid') || rawStatus.includes('reject') || rawStatus.includes('fake') || rawStatus.includes('not interested')) {
-      return 'Lost / Disqualified';
-    }
-
-    return 'New Lead';
-  };
-
-  const getLeadsForStage = (stageId: PipelineStage) => {
-    return leads.filter((lead) => resolveStageForLead(lead) === stageId);
-  };
+  // Group leads by stage
+  const leadsByStage = DEFAULT_STAGES.reduce<Record<string, Lead[]>>((acc, stage) => {
+    acc[stage.id] = leads.filter(
+      (lead) => (lead.lead_status || 'New Lead').toLowerCase() === stage.id.toLowerCase()
+    );
+    return acc;
+  }, {});
 
   const handleDragStart = (e: React.DragEvent, leadId: string) => {
-    e.dataTransfer.setData('text/plain', leadId);
-    setDraggedLeadId(leadId);
+    e.dataTransfer.setData('leadId', leadId);
   };
 
-  const handleDragOver = (e: React.DragEvent, stageId: string) => {
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setActiveDropZone(stageId);
-  };
-
-  const handleDragLeave = () => {
-    setActiveDropZone(null);
   };
 
   const handleDrop = (e: React.DragEvent, stageId: string) => {
     e.preventDefault();
-    const leadId = e.dataTransfer.getData('text/plain') || draggedLeadId;
+    const leadId = e.dataTransfer.getData('leadId');
     if (leadId) {
       onUpdateLeadStage(leadId, stageId);
     }
-    setDraggedLeadId(null);
-    setActiveDropZone(null);
   };
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '';
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return dateStr;
-      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    } catch {
-      return dateStr;
-    }
-  };
-
-  const mobileStageLeads = getLeadsForStage(selectedMobileStage);
-  const activeStageConfig = DEFAULT_STAGES.find((s) => s.id === selectedMobileStage) || DEFAULT_STAGES[0];
 
   return (
     <div className="flex-1 flex flex-col p-3 sm:p-4 md:p-6 overflow-hidden">
-      {/* Top Pipeline Summary Header */}
+      {/* Top Header */}
       <div className="flex items-center justify-between mb-3 shrink-0">
-        <div className="flex items-center space-x-2 sm:space-x-3">
+        <div>
           <h2 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
-            <span>Pipeline Kanban</span>
+            <span>Pipeline Board</span>
+            <span className="text-xs px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20 font-semibold">
+              {leads.length} Total Leads
+            </span>
           </h2>
-          <span className="px-2 py-0.5 rounded-full bg-brand-500/15 text-brand-300 border border-brand-500/30 text-[11px] sm:text-xs font-bold">
-            {leads.length} Leads
-          </span>
+          <p className="text-[11px] sm:text-xs text-slate-400">
+            Drag cards between stages or click to view 360° lead details.
+          </p>
         </div>
 
         <button
-          onClick={() => onOpenNewLead(selectedMobileStage)}
-          className="flex items-center space-x-1 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold shadow-md shadow-brand-600/30 transition-all active:scale-95"
+          onClick={() => onOpenNewLead(activeMobileStage)}
+          className="flex items-center space-x-1.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white font-bold text-xs shadow-lg shadow-brand-600/30 transition-all active:scale-95 shrink-0"
         >
-          <Plus className="w-3.5 h-3.5" />
-          <span>Add Lead</span>
+          <Plus className="w-4 h-4 stroke-[2.5]" />
+          <span className="hidden sm:inline">Add Lead</span>
         </button>
       </div>
 
       {/* ========================================================================= */}
-      {/* MOBILE STAGE TABS (Visible on < lg screens) */}
+      {/* MOBILE STAGE TABS CAROUSEL (Visible on < lg screens) */}
       {/* ========================================================================= */}
-      <div className="lg:hidden flex flex-col flex-1 overflow-hidden space-y-3">
-        {/* Horizontal Stage Pills Carousel */}
-        <div className="flex space-x-2 overflow-x-auto pb-1.5 scrollbar-none shrink-0 pr-2">
+      <div className="lg:hidden flex flex-col flex-1 overflow-hidden">
+        {/* Horizontal Swipeable Stage Pills */}
+        <div className="flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-none shrink-0 pr-2">
           {DEFAULT_STAGES.map((stage) => {
-            const count = getLeadsForStage(stage.id).length;
-            const isSelected = selectedMobileStage === stage.id;
-
+            const count = (leadsByStage[stage.id] || []).length;
+            const isActive = activeMobileStage === stage.id;
             return (
               <button
                 key={stage.id}
-                onClick={() => setSelectedMobileStage(stage.id)}
-                className={`flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all shrink-0 border ${
-                  isSelected
-                    ? `${stage.bg} ${stage.color} ${stage.border} ring-1 ring-brand-500/40 shadow-sm`
-                    : 'bg-slate-900/80 text-slate-400 border-slate-800 hover:text-slate-200'
+                onClick={() => setActiveMobileStage(stage.id)}
+                className={`px-3 py-2 rounded-xl border text-xs font-bold whitespace-nowrap flex items-center space-x-2 transition-all shrink-0 ${
+                  isActive
+                    ? 'bg-brand-600 text-white border-brand-500 shadow-md scale-100'
+                    : 'bg-slate-900/90 text-slate-400 border-slate-800 hover:text-slate-200'
                 }`}
               >
-                <span className={`w-2 h-2 rounded-full ${stage.bg} border ${stage.border}`} />
                 <span>{stage.label}</span>
-                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${isSelected ? 'bg-black/30' : 'bg-slate-800 text-slate-400'}`}>
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
+                  }`}
+                >
                   {count}
                 </span>
               </button>
@@ -154,49 +108,40 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
           })}
         </div>
 
-        {/* Mobile Cards Vertical Feed */}
-        <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 pb-16 custom-scrollbar">
-          {mobileStageLeads.length === 0 ? (
-            <div className="p-8 text-center bg-slate-900/60 rounded-2xl border border-slate-800/80 mt-4 space-y-2">
-              <Inbox className="w-8 h-8 text-slate-400 mx-auto" />
-              <p className="text-sm font-semibold text-slate-300">No leads in {activeStageConfig.label}</p>
-              <p className="text-xs text-slate-400">Tap below to create a new lead directly in this stage.</p>
-              <button
-                onClick={() => onOpenNewLead(selectedMobileStage)}
-                className="mt-2 inline-flex items-center space-x-1 px-3 py-1.5 rounded-xl bg-brand-600 text-white font-bold text-xs shadow"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Add Lead to {activeStageConfig.label}</span>
-              </button>
+        {/* Active Stage Leads Card Feed on Mobile */}
+        <div className="flex-1 overflow-y-auto space-y-2.5 pt-2 pb-20 custom-scrollbar pr-0.5">
+          {(leadsByStage[activeMobileStage] || []).length === 0 ? (
+            <div className="p-8 text-center bg-slate-900/60 rounded-2xl border border-slate-800 space-y-1">
+              <p className="text-sm font-semibold text-slate-300">No leads in {activeMobileStage}</p>
+              <p className="text-xs text-slate-400">
+                Tap '+ Add Lead' to insert a lead into this stage.
+              </p>
             </div>
           ) : (
-            mobileStageLeads.map((lead) => {
-              const configInterests = lead['which_configuration_are_you_interested_in?'] || lead.configuration || lead.service;
-              const budget = lead['what_is_your_budget?'] || lead.budget;
+            (leadsByStage[activeMobileStage] || []).map((lead) => {
               const platform = (lead.platform || '').toLowerCase();
+              const configInterests = getLeadConfiguration(lead);
+              const budget = getLeadBudget(lead);
 
               return (
                 <div
                   key={lead.id}
                   onClick={() => onSelectLead(lead)}
-                  className="bg-slate-900/90 active:bg-slate-800 border border-slate-800 hover:border-brand-500/50 rounded-2xl p-4 transition-all shadow-sm space-y-3 cursor-pointer"
+                  className="bg-slate-900/90 active:bg-slate-800 border border-slate-800 rounded-2xl p-3.5 space-y-3 cursor-pointer shadow-sm"
                 >
-                  {/* Top Row: Name, Sheet & Platform */}
+                  {/* Top Bar */}
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <h4 className="text-sm font-bold text-slate-100 truncate">
                         {lead.full_name || 'Unnamed Lead'}
                       </h4>
-                      <p className="text-xs text-slate-400 flex items-center gap-1 mt-0.5 truncate">
-                        <Phone className="w-3 h-3 text-slate-400" />
-                        <span>{lead.phone_number || 'No Contact'}</span>
-                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5 truncate">{lead.phone_number || '-'}</p>
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0">
                       {platform && (
                         <span
-                          className={`text-[9px] font-bold px-1.5 py-0.5 rounded border uppercase ${
+                          className={`text-[9px] font-bold px-1.5 py-0.2 rounded border uppercase ${
                             platform.includes('ig') || platform.includes('instagram')
                               ? 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30'
                               : 'bg-blue-500/15 text-blue-300 border-blue-500/30'
@@ -206,72 +151,55 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                         </span>
                       )}
                       {lead.sheet_source && (
-                        <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-slate-800 text-brand-300 border border-slate-700">
+                        <span className="text-[9px] font-medium px-1.5 py-0.2 rounded bg-slate-800 text-brand-300 border border-slate-700">
                           {lead.sheet_source}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Requirements & Campaign */}
-                  {(configInterests || budget || lead.campaign_name) && (
-                    <div className="space-y-1 pt-2 border-t border-slate-800/80 text-xs">
+                  {/* Requirements & Budget */}
+                  {(configInterests || budget) && (
+                    <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-800 text-slate-300">
                       {configInterests && (
-                        <div className="flex items-center gap-1.5 text-slate-300 truncate">
-                          <Tag className="w-3 h-3 text-brand-400 shrink-0" />
-                          <span className="truncate font-medium">{configInterests}</span>
-                        </div>
+                        <span className="font-medium text-brand-300 truncate">{configInterests}</span>
                       )}
                       {budget && (
-                        <div className="flex items-center gap-1.5 text-slate-300 truncate">
-                          <Wallet className="w-3 h-3 text-emerald-400 shrink-0" />
-                          <span className="truncate font-medium">{budget}</span>
-                        </div>
-                      )}
-                      {lead.campaign_name && (
-                        <div className="flex items-center gap-1.5 text-slate-400 text-[11px] truncate">
-                          <Layers className="w-3 h-3 shrink-0" />
-                          <span className="truncate">{lead.campaign_name}</span>
-                        </div>
+                        <span className="font-medium text-emerald-400 shrink-0">{budget}</span>
                       )}
                     </div>
                   )}
 
-                  {/* Action Bar: Stage Changer & WhatsApp / Call */}
-                  <div className="flex items-center justify-between pt-2.5 border-t border-slate-800/80 gap-2">
-                    {/* Stage Dropdown */}
-                    <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                  {/* 1-Tap Quick Action Row & Stage Switcher */}
+                  <div className="flex items-center justify-between pt-2.5 border-t border-slate-800 gap-2">
+                    <div className="flex-1" onClick={(e) => e.stopPropagation()}>
                       <select
                         value={lead.lead_status || 'New Lead'}
                         onChange={(e) => onUpdateLeadStage(lead.id, e.target.value)}
-                        className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 text-xs font-semibold text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                        className="w-full bg-slate-800 border border-slate-700 rounded-xl px-2 py-1.5 text-xs font-semibold text-slate-200 focus:outline-none"
                       >
                         {DEFAULT_STAGES.map((s) => (
                           <option key={s.id} value={s.id}>
-                            Move to: {s.label}
+                            {s.label}
                           </option>
                         ))}
                       </select>
                     </div>
 
-                    {/* WhatsApp & Call Buttons */}
-                    <div className="flex items-center gap-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                       {lead.phone_number && (
                         <button
-                          type="button"
                           onClick={() => onOpenWhatsApp(lead)}
-                          className="px-2.5 py-1.5 rounded-xl bg-emerald-500/15 active:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 font-semibold text-xs flex items-center gap-1 transition-colors"
+                          className="px-2.5 py-1.5 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-xs font-semibold flex items-center gap-1"
                         >
                           <MessageSquare className="w-3.5 h-3.5" />
                           <span>Chat</span>
                         </button>
                       )}
-
                       {lead.phone_number && (
                         <a
                           href={`tel:${lead.phone_number}`}
-                          className="p-1.5 rounded-xl bg-sky-500/15 active:bg-sky-500/30 text-sky-400 border border-sky-500/30 transition-colors"
-                          title="Call Lead"
+                          className="p-1.5 rounded-xl bg-sky-500/15 text-sky-400 border border-sky-500/30"
                         >
                           <Phone className="w-3.5 h-3.5" />
                         </a>
@@ -288,55 +216,47 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
       {/* ========================================================================= */}
       {/* DESKTOP 7-COLUMN KANBAN BOARD (Visible on >= lg screens) */}
       {/* ========================================================================= */}
-      <div className="hidden lg:flex gap-4 min-w-[1400px] pb-6 items-start flex-1 overflow-x-auto custom-scrollbar">
+      <div className="hidden lg:flex flex-1 space-x-3.5 overflow-x-auto pb-4 custom-scrollbar">
         {DEFAULT_STAGES.map((stage) => {
-          const stageLeads = getLeadsForStage(stage.id);
-          const isDropTarget = activeDropZone === stage.id;
+          const stageLeads = leadsByStage[stage.id] || [];
 
           return (
             <div
               key={stage.id}
-              onDragOver={(e) => handleDragOver(e, stage.id)}
-              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, stage.id)}
-              className={`w-80 flex-shrink-0 bg-slate-900/70 rounded-2xl border transition-all flex flex-col max-h-[calc(100vh-180px)] ${
-                isDropTarget
-                  ? 'border-brand-400 ring-2 ring-brand-500/20 bg-slate-800/90'
-                  : 'border-slate-800 shadow-sm'
-              }`}
+              className="w-80 shrink-0 bg-slate-900/70 border border-slate-800/80 rounded-2xl flex flex-col max-h-full shadow-lg backdrop-blur"
             >
-              {/* Stage Header */}
-              <div className="p-3.5 border-b border-slate-800 flex items-center justify-between sticky top-0 bg-slate-900/90 backdrop-blur rounded-t-2xl z-10">
+              {/* Column Header */}
+              <div className="p-3.5 border-b border-slate-800/80 flex items-center justify-between shrink-0">
                 <div className="flex items-center space-x-2 min-w-0">
-                  <span className={`w-2.5 h-2.5 rounded-full ${stage.bg} border ${stage.border} shrink-0`} />
-                  <h3 className="font-semibold text-xs tracking-wide text-slate-200 uppercase truncate">
-                    {stage.label}
-                  </h3>
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${stage.bg} ${stage.color} border ${stage.border} shrink-0`}>
+                  <span className={`w-2.5 h-2.5 rounded-full ${stage.badgeBg} ring-2 ring-slate-800`} />
+                  <h3 className="font-bold text-xs text-slate-200 truncate">{stage.label}</h3>
+                  <span className="px-1.5 py-0.2 rounded-md bg-slate-800 text-[10px] font-bold text-slate-400">
                     {stageLeads.length}
                   </span>
                 </div>
+
                 <button
                   onClick={() => onOpenNewLead(stage.id)}
-                  title="Add lead to this stage"
-                  className="text-slate-400 hover:text-slate-200 p-1 hover:bg-slate-800 rounded-lg shrink-0"
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+                  title={`Add lead to ${stage.label}`}
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="w-3.5 h-3.5" />
                 </button>
               </div>
 
               {/* Cards Container */}
-              <div className="p-2.5 space-y-2.5 overflow-y-auto flex-1 custom-scrollbar">
+              <div className="flex-1 overflow-y-auto p-2.5 space-y-2.5 custom-scrollbar">
                 {stageLeads.length === 0 ? (
-                  <div className="h-32 border-2 border-dashed border-slate-800/80 rounded-xl flex items-center justify-center text-xs text-slate-400 font-medium">
-                    Drop leads here
+                  <div className="h-32 border-2 border-dashed border-slate-800/80 rounded-xl flex flex-col items-center justify-center text-slate-400 text-xs p-3 text-center">
+                    <p className="font-medium">Drop leads here</p>
                   </div>
                 ) : (
                   stageLeads.map((lead) => {
-                    const isDragging = draggedLeadId === lead.id;
-                    const configInterests = lead['which_configuration_are_you_interested_in?'] || lead.configuration || lead.service;
-                    const budget = lead['what_is_your_budget?'] || lead.budget;
                     const platform = (lead.platform || '').toLowerCase();
+                    const configInterests = getLeadConfiguration(lead);
+                    const budget = getLeadBudget(lead);
 
                     return (
                       <div
@@ -344,103 +264,77 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                         draggable
                         onDragStart={(e) => handleDragStart(e, lead.id)}
                         onClick={() => onSelectLead(lead)}
-                        className={`group bg-slate-800/90 hover:bg-slate-800 border border-slate-700/70 hover:border-brand-500/50 rounded-xl p-3.5 transition-all cursor-pointer shadow-sm hover:shadow-md hover:shadow-brand-500/5 ${
-                          isDragging ? 'opacity-40 scale-95' : 'opacity-100'
-                        }`}
+                        className="bg-slate-900 hover:bg-slate-800/90 border border-slate-800 hover:border-slate-700/80 rounded-xl p-3 space-y-2.5 cursor-grab active:cursor-grabbing transition-all shadow-sm group"
                       >
-                        {/* Top: Name & Platform */}
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <div className="min-w-0">
-                            <h4 className="text-sm font-semibold text-slate-100 group-hover:text-brand-300 transition-colors truncate">
-                              {lead.full_name || 'Unnamed Lead'}
-                            </h4>
-                            <p className="text-xs text-slate-400 truncate flex items-center gap-1 mt-0.5">
-                              <Phone className="w-3 h-3 text-slate-400" />
-                              <span>{lead.phone_number || 'No Phone'}</span>
-                            </p>
-                          </div>
-
+                        {/* Name & Source */}
+                        <div className="flex items-start justify-between gap-1">
+                          <h4 className="font-bold text-xs text-slate-100 group-hover:text-brand-300 transition-colors truncate">
+                            {lead.full_name || 'Unnamed Lead'}
+                          </h4>
                           <div className="flex items-center gap-1 shrink-0">
                             {platform && (
                               <span
-                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase ${
+                                className={`text-[8px] font-bold px-1 rounded uppercase ${
                                   platform.includes('ig') || platform.includes('instagram')
-                                    ? 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30'
-                                    : 'bg-blue-500/15 text-blue-300 border-blue-500/30'
+                                    ? 'bg-fuchsia-500/15 text-fuchsia-300'
+                                    : 'bg-blue-500/15 text-blue-300'
                                 }`}
                               >
                                 {platform.includes('ig') || platform.includes('instagram') ? 'IG' : 'FB'}
                               </span>
                             )}
                             {lead.sheet_source && (
-                              <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-slate-700/60 text-slate-300 border border-slate-600/40">
+                              <span className="text-[8px] font-medium px-1 rounded bg-slate-800 text-brand-300 border border-slate-700">
                                 {lead.sheet_source}
                               </span>
                             )}
                           </div>
                         </div>
 
-                        {/* Meta Questions / Advisory Details */}
-                        <div className="space-y-1.5 my-2.5 pt-2 border-t border-slate-700/50 text-xs">
-                          {configInterests && (
-                            <div className="flex items-center gap-1.5 text-slate-300 truncate">
-                              <Tag className="w-3 h-3 text-brand-400 shrink-0" />
-                              <span className="truncate font-medium">{configInterests}</span>
-                            </div>
-                          )}
-
-                          {budget && (
-                            <div className="flex items-center gap-1.5 text-slate-300 truncate">
-                              <Wallet className="w-3 h-3 text-emerald-400 shrink-0" />
-                              <span className="truncate font-medium">{budget}</span>
-                            </div>
-                          )}
-
-                          {lead.campaign_name && (
-                            <div className="flex items-center gap-1.5 text-slate-400 truncate text-[11px]">
-                              <Layers className="w-3 h-3 text-slate-400 shrink-0" />
-                              <span className="truncate">{lead.campaign_name}</span>
-                            </div>
-                          )}
+                        {/* Phone */}
+                        <div className="text-[11px] text-slate-400 truncate">
+                          {lead.phone_number || '-'}
                         </div>
 
-                        {/* Follow-up / Notes Indicator */}
-                        {lead.crm_notes && (
-                          <div className="mb-2 p-1.5 rounded bg-slate-900/60 border border-slate-700/40 text-[11px] text-slate-300 line-clamp-1 italic">
-                            "{lead.crm_notes}"
+                        {/* Configuration & Budget */}
+                        {(configInterests || budget) && (
+                          <div className="space-y-0.5 text-[11px] pt-1.5 border-t border-slate-800/60">
+                            {configInterests && (
+                              <p className="font-medium text-brand-300 truncate">
+                                {configInterests}
+                              </p>
+                            )}
+                            {budget && (
+                              <p className="text-emerald-400 font-medium truncate">
+                                {budget}
+                              </p>
+                            )}
                           </div>
                         )}
 
-                        {/* Bottom Actions & Date */}
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-700/50">
-                          <div className="flex items-center gap-1 text-[11px] text-slate-400">
-                            <Clock className="w-3 h-3" />
-                            <span>{formatDate(lead.created_time)}</span>
-                          </div>
+                        {/* Quick Contact Icons */}
+                        <div className="flex items-center justify-between pt-1.5 border-t border-slate-800/60 text-slate-400 text-[10px]">
+                          <span className="text-slate-400 truncate max-w-[120px]">
+                            {lead.campaign_name || '-'}
+                          </span>
 
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center space-x-1" onClick={(e) => e.stopPropagation()}>
                             {lead.phone_number && (
                               <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onOpenWhatsApp(lead);
-                                }}
-                                className="p-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 transition-colors"
-                                title="Open WhatsApp Chat"
+                                onClick={() => onOpenWhatsApp(lead)}
+                                className="p-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-colors"
+                                title="WhatsApp"
                               >
-                                <MessageSquare className="w-3.5 h-3.5" />
+                                <MessageSquare className="w-3 h-3" />
                               </button>
                             )}
-
                             {lead.phone_number && (
                               <a
                                 href={`tel:${lead.phone_number}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="p-1.5 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 text-sky-400 border border-sky-500/30 transition-colors"
-                                title="Call Lead"
+                                className="p-1 rounded bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 transition-colors"
+                                title="Call"
                               >
-                                <Phone className="w-3.5 h-3.5" />
+                                <Phone className="w-3 h-3" />
                               </a>
                             )}
                           </div>

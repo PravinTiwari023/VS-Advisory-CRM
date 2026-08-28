@@ -8,7 +8,7 @@ import {
   Check, 
   Building2 
 } from 'lucide-react';
-import { Lead } from '../types';
+import { Lead, getLeadConfiguration, getLeadBudget } from '../types';
 
 interface WhatsAppTemplateModalProps {
   lead: Lead;
@@ -33,7 +33,7 @@ export const WhatsAppTemplateModal: React.FC<WhatsAppTemplateModalProps> = ({
       category: 'Greeting',
       text: (l) =>
         `Hi ${l.full_name || 'there'}! 👋\nThank you for your interest in our advisory regarding ${
-          l['which_configuration_are_you_interested_in?'] || 'our premium property portfolio'
+          getLeadConfiguration(l) || 'our premium property portfolio'
         }.\n\nWould you like me to share the verified brochure and pricing breakdown with you right here on WhatsApp?`
     },
     {
@@ -51,7 +51,7 @@ export const WhatsAppTemplateModal: React.FC<WhatsAppTemplateModalProps> = ({
       category: 'Follow-up',
       text: (l) =>
         `Hello ${l.full_name || ''},\nBased on your requested budget (${
-          l['what_is_your_budget?'] || 'your preference'
+          getLeadBudget(l) || 'your preference'
         }), I have curated 2 verified high-ROI opportunities that match your criteria.\n\nLet me know if you would like me to send the comparative analysis!`
     },
     {

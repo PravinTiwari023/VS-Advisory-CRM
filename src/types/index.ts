@@ -15,6 +15,7 @@ export interface Lead {
   'which_configuration_are_you_interested_in?'?: string;
   // H.Rishabraj Column
   'what_are_you_looking_for?'?: string;
+  'what_are_you_looking_for'?: string;
   // Fallbacks
   configuration?: string;
   // Kanakia Column
@@ -40,6 +41,35 @@ export interface Lead {
   crm_deal_value?: string;
   crm_next_follow_up?: string;
   crm_last_contacted?: string;
+}
+
+export function getLeadConfiguration(lead: Lead | null | undefined): string {
+  if (!lead) return '';
+  const val = (
+    lead['which_configuration_are_you_interested_in?'] ||
+    lead['what_are_you_looking_for?'] ||
+    lead['what_are_you_looking_for'] ||
+    lead.configuration ||
+    (lead as any)['which_configuration_are_you_interested_in'] ||
+    (lead as any)['interested_in'] ||
+    (lead as any)['looking_for'] ||
+    (lead as any)['requirement'] ||
+    ''
+  );
+  return String(val || '').trim();
+}
+
+export function getLeadBudget(lead: Lead | null | undefined): string {
+  if (!lead) return '';
+  const val = (
+    lead['what_is_your_budget?'] ||
+    lead['what_is_your_budget'] ||
+    lead.budget ||
+    (lead as any)['price_range'] ||
+    (lead as any)['budget_range'] ||
+    ''
+  );
+  return String(val || '').trim();
 }
 
 export interface PipelineStage {

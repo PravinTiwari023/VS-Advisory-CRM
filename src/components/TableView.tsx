@@ -11,7 +11,7 @@ import {
   RotateCcw,
   Check
 } from 'lucide-react';
-import { Lead, DEFAULT_STAGES, SheetConfig } from '../types';
+import { Lead, DEFAULT_STAGES, SheetConfig, getLeadConfiguration, getLeadBudget } from '../types';
 
 interface TableViewProps {
   leads: Lead[];
@@ -63,13 +63,17 @@ export const TableView: React.FC<TableViewProps> = ({
     return leads.filter((lead) => {
       if (search.trim()) {
         const q = search.toLowerCase();
+        const conf = getLeadConfiguration(lead).toLowerCase();
+        const bud = getLeadBudget(lead).toLowerCase();
         const matchesName = lead.full_name?.toLowerCase().includes(q);
         const matchesPhone = lead.phone_number?.toLowerCase().includes(q);
         const matchesEmail = lead.email?.toLowerCase().includes(q);
         const matchesCampaign = lead.campaign_name?.toLowerCase().includes(q);
         const matchesAd = lead.ad_name?.toLowerCase().includes(q);
-        const matchesConfig = lead['which_configuration_are_you_interested_in?']?.toLowerCase().includes(q);
-        if (!matchesName && !matchesPhone && !matchesEmail && !matchesCampaign && !matchesAd && !matchesConfig) {
+        const matchesConfig = conf.includes(q);
+        const matchesBudget = bud.includes(q);
+
+        if (!matchesName && !matchesPhone && !matchesEmail && !matchesCampaign && !matchesAd && !matchesConfig && !matchesBudget) {
           return false;
         }
       }
@@ -133,8 +137,8 @@ export const TableView: React.FC<TableViewProps> = ({
       `"${l.phone_number || ''}"`,
       `"${l.email || ''}"`,
       `"${l.lead_status || ''}"`,
-      `"${l['which_configuration_are_you_interested_in?'] || ''}"`,
-      `"${l['what_is_your_budget?'] || ''}"`,
+      `"${getLeadConfiguration(l)}"`,
+      `"${getLeadBudget(l)}"`,
       `"${l.campaign_name || ''}"`,
       `"${l.ad_name || ''}"`,
       `"${l.platform || ''}"`,
@@ -166,7 +170,7 @@ export const TableView: React.FC<TableViewProps> = ({
 
   return (
     <div className="flex-1 flex flex-col p-3 sm:p-4 md:p-6 overflow-hidden">
-      {/* Top Header & Search Bar */}
+      {/* Top Header & Actions */}
       <div className="flex items-center justify-between gap-2 mb-2.5 shrink-0">
         <div>
           <h2 className="text-base sm:text-lg font-bold text-slate-100">Leads Directory</h2>
@@ -206,10 +210,9 @@ export const TableView: React.FC<TableViewProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* MOBILE QUICK FILTER PILLS (Horizontal Scroll on < md) */}
+      {/* MOBILE QUICK FILTER PILLS */}
       {/* ========================================================================= */}
       <div className="md:hidden flex items-center space-x-2 overflow-x-auto pb-2 scrollbar-none shrink-0 pr-2">
-        {/* Quick Platform Filters */}
         <button
           onClick={() => setFilterPlatform(filterPlatform === 'ALL' ? 'fb' : filterPlatform === 'fb' ? 'ig' : 'ALL')}
           className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold whitespace-nowrap flex items-center gap-1 transition-all ${
@@ -221,7 +224,6 @@ export const TableView: React.FC<TableViewProps> = ({
           <span>Platform: {filterPlatform.toUpperCase()}</span>
         </button>
 
-        {/* Quick Sheet Filter */}
         <button
           onClick={() => setShowFilterModal(true)}
           className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold whitespace-nowrap flex items-center gap-1 transition-all ${
@@ -233,7 +235,6 @@ export const TableView: React.FC<TableViewProps> = ({
           <span>Sheet: {filterSource === 'ALL' ? 'All' : filterSource}</span>
         </button>
 
-        {/* Quick Stage Filter */}
         <button
           onClick={() => setShowFilterModal(true)}
           className={`px-2.5 py-1 rounded-lg border text-[11px] font-semibold whitespace-nowrap flex items-center gap-1 transition-all ${
@@ -257,7 +258,7 @@ export const TableView: React.FC<TableViewProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* DESKTOP FILTER BAR (Visible on >= md) */}
+      {/* DESKTOP FILTER BAR */}
       {/* ========================================================================= */}
       <div className="hidden md:grid bg-slate-900/80 border border-slate-800 rounded-2xl p-3 mb-3 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 shrink-0">
         <div className="relative">
@@ -330,7 +331,7 @@ export const TableView: React.FC<TableViewProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* MOBILE LEAD CARDS FEED (Visible on < md) */}
+      {/* MOBILE LEAD CARDS FEED */}
       {/* ========================================================================= */}
       <div className="md:hidden flex-1 overflow-y-auto space-y-2.5 pb-24 custom-scrollbar pr-0.5">
         {filteredLeads.length === 0 ? (
@@ -349,8 +350,8 @@ export const TableView: React.FC<TableViewProps> = ({
         ) : (
           filteredLeads.map((lead) => {
             const platform = (lead.platform || '').toLowerCase();
-            const configInterests = lead['which_configuration_are_you_interested_in?'] || lead.configuration;
-            const budget = lead['what_is_your_budget?'] || lead.budget;
+            const configInterests = getLeadConfiguration(lead);
+            const budget = getLeadBudget(lead);
 
             return (
               <div
@@ -442,7 +443,7 @@ export const TableView: React.FC<TableViewProps> = ({
       </div>
 
       {/* ========================================================================= */}
-      {/* DESKTOP DATA GRID (Visible on >= md) */}
+      {/* DESKTOP DATA GRID */}
       {/* ========================================================================= */}
       <div className="hidden md:flex flex-1 bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden shadow-xl flex-col">
         <div className="overflow-x-auto flex-1 custom-scrollbar">
@@ -469,8 +470,8 @@ export const TableView: React.FC<TableViewProps> = ({
               ) : (
                 filteredLeads.map((lead) => {
                   const platform = lead.platform?.toLowerCase() || '';
-                  const configInterests = lead['which_configuration_are_you_interested_in?'] || lead.configuration;
-                  const budget = lead['what_is_your_budget?'] || lead.budget;
+                  const configInterests = getLeadConfiguration(lead);
+                  const budget = getLeadBudget(lead);
 
                   return (
                     <tr
@@ -591,20 +592,16 @@ export const TableView: React.FC<TableViewProps> = ({
         </div>
       </div>
 
-      {/* ========================================================================= */}
       {/* MOBILE FULL FILTER BOTTOM DRAWER MODAL */}
-      {/* ========================================================================= */}
       {showFilterModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center p-0 bg-black/80 backdrop-blur-sm animate-in fade-in-50">
           <div className="absolute inset-0" onClick={() => setShowFilterModal(false)} />
 
           <div className="relative w-full bg-slate-900 border-t border-slate-800 rounded-t-3xl shadow-2xl p-5 space-y-4 max-h-[85vh] overflow-y-auto z-10 animate-in slide-in-from-bottom-10">
-            {/* Grab Handle */}
             <div className="flex justify-center pb-1">
               <div className="w-12 h-1.5 rounded-full bg-slate-700" />
             </div>
 
-            {/* Header */}
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
                 <SlidersHorizontal className="w-4 h-4 text-brand-400" />
@@ -618,7 +615,6 @@ export const TableView: React.FC<TableViewProps> = ({
               </button>
             </div>
 
-            {/* Filter Inputs */}
             <div className="space-y-3.5 text-xs">
               <div>
                 <label className="block text-slate-400 font-semibold mb-1">Source Sheet</label>
@@ -693,7 +689,6 @@ export const TableView: React.FC<TableViewProps> = ({
               </div>
             </div>
 
-            {/* Bottom Actions */}
             <div className="flex items-center gap-2 pt-2 border-t border-slate-800">
               <button
                 onClick={handleResetFilters}

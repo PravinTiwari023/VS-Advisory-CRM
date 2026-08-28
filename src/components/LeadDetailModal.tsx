@@ -15,7 +15,7 @@ import {
   CheckCircle2,
   DollarSign
 } from 'lucide-react';
-import { Lead, User, Activity, Task, DEFAULT_STAGES } from '../types';
+import { Lead, User, Activity, Task, DEFAULT_STAGES, getLeadConfiguration, getLeadBudget } from '../types';
 
 interface LeadDetailModalProps {
   lead: Lead;
@@ -101,12 +101,13 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
     setNewTaskDate('');
   };
 
+  const configInterests = getLeadConfiguration(lead);
+  const budget = getLeadBudget(lead);
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in-50">
-      {/* Backdrop click */}
       <div className="absolute inset-0" onClick={onClose} />
 
-      {/* Modal / Bottom Sheet Box */}
       <div className="relative w-full max-w-3xl bg-slate-900 border border-slate-800 rounded-t-3xl sm:rounded-3xl shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[88vh] overflow-hidden z-10 animate-in slide-in-from-bottom-10 sm:zoom-in-95">
         
         {/* Mobile Grab Bar */}
@@ -290,14 +291,14 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                   <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800/80">
                     <p className="text-[10px] text-slate-400 uppercase font-semibold">Interested In</p>
                     <p className="font-bold text-brand-300 truncate mt-0.5">
-                      {lead['which_configuration_are_you_interested_in?'] || lead.configuration || '-'}
+                      {configInterests || '-'}
                     </p>
                   </div>
 
                   <div className="p-2.5 rounded-xl bg-slate-900 border border-slate-800/80">
                     <p className="text-[10px] text-slate-400 uppercase font-semibold">Budget</p>
                     <p className="font-bold text-emerald-400 truncate mt-0.5">
-                      {lead['what_is_your_budget?'] || lead.budget || '-'}
+                      {budget || '-'}
                     </p>
                   </div>
 
